@@ -34,6 +34,8 @@ This repo is configured for split hosting:
 3. Set Railway environment variable:
    - `CLIENT_ORIGIN=https://your-vercel-app.vercel.app`
    - You can provide multiple origins as CSV.
+4. If Railway still uses an older Node version, set:
+   - `NIXPACKS_NODE_VERSION=20`
 
 ### 2) Deploy frontend to Vercel
 
@@ -58,4 +60,3 @@ Client:
 
 Server:
 - `CLIENT_ORIGIN`: allowed frontend origin(s) for Socket.IO CORS. Comma-separated.
-
