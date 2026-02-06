@@ -6,9 +6,10 @@ import { Server } from 'socket.io';
 import path from 'path';
 import { existsSync } from 'fs';
 import { RoomManager } from './roomManager';
-import type {
-  ClientToServerEvents,
-  ServerToClientEvents,
+import {
+  DEALER_EMOTE_OPTIONS,
+  type ClientToServerEvents,
+  type ServerToClientEvents,
 } from '../src/shared/protocol';
 
 // ─── Express + HTTP ───────────────────────────────────────────────────────────
@@ -25,6 +26,7 @@ const io = new Server<ClientToServerEvents, ServerToClientEvents>(httpServer, {
 });
 
 const roomManager = new RoomManager();
+const DEALER_EMOTE_KINDS = new Set(DEALER_EMOTE_OPTIONS.map((option) => option.kind));
 
 // ─── Serve Static Files in Production ─────────────────────────────────────────
 
@@ -251,6 +253,41 @@ io.on('connection', (socket) => {
 
     // Broadcast to all sockets in the room
     io.to(ctx.roomCode).emit('chat_message', msg);
+  });
+
+  socket.on('send_dealer_emote', ({ emote }) => {
+    const ctx = roomManager.getContextForSocket(socket.id);
+    if (!ctx) return;
+
+    if (ctx.playerId !== ctx.room.table.buttonPlayerId) {
+      socket.emit('error', { message: 'Only the dealer can send emotes' });
+      return;
+    }
+
+    if (!DEALER_EMOTE_KINDS.has(emote)) return;
+
+    const player = ctx.room.table.players.get(ctx.playerId);
+    if (!player) return;
+
+    io.to(ctx.roomCode).emit('dealer_emote', {
+      playerId: ctx.playerId,
+      playerName: player.name,
+      emote,
+      timestamp: Date.now(),
+    });
+  });
+
+  socket.on('add_stack', ({ playerId, amount }) => {
+    const ctx = roomManager.getContextForSocket(socket.id);
+    if (!ctx) return;
+
+    const ok = ctx.room.table.addStack(ctx.playerId, playerId, Math.trunc(amount));
+    if (!ok) {
+      socket.emit('error', { message: 'Cannot add stack right now' });
+      return;
+    }
+
+    broadcastState(ctx.roomCode);
   });
 
   // ─── Set Chip Denominations (Host Only) ──────────────────────────

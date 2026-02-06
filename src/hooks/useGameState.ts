@@ -2,7 +2,17 @@
 
 import { create } from 'zustand';
 import { socket } from './useSocket';
-import type { ClientTableState, TablePlayer, PlayerSettlement, TablePhase, ProvablyFairInfo, ChatMessage, DiceRollResult } from '../shared/protocol';
+import type {
+  ClientTableState,
+  TablePlayer,
+  PlayerSettlement,
+  TablePhase,
+  ProvablyFairInfo,
+  ChatMessage,
+  DiceRollResult,
+  DealerEmote,
+  DealerEmoteKind,
+} from '../shared/protocol';
 import type { Card } from '../engine/deck';
 import { getAvailableActions, totalWager, nextDoubleWager, STARTING_BALANCE, DEFAULT_CHIP_DENOMINATIONS, type AvailableActions } from '../engine/rules';
 
@@ -59,6 +69,7 @@ export interface DepartedPlayer {
   lastBalance: number;
   buyIn: number;
   departedAt: number;
+  isDealer: boolean;
 }
 
 // ─── Store Interface ──────────────────────────────────────────────────────────
@@ -114,6 +125,7 @@ interface GameStore {
   // Chat
   chatMessages: ChatMessage[];
   unreadChatCount: number;
+  dealerEmote: DealerEmote | null;
 
   // Dice roll (dealer selection)
   diceRoll: DiceRollResult | null;
@@ -169,6 +181,8 @@ interface GameStore {
   setAnimating: (v: boolean) => void;
   clearError: () => void;
   sendChat: (text: string) => void;
+  sendDealerEmote: (emote: DealerEmoteKind) => void;
+  addStack: (playerId: string, amount: number) => void;
   setChipDenoms: (denominations: number[]) => void;
 }
 
@@ -309,6 +323,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   chatMessages: [],
   unreadChatCount: 0,
+  dealerEmote: null,
 
   diceRoll: null,
 
@@ -357,6 +372,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       departedPlayers: [],
       chatMessages: [],
       unreadChatCount: 0,
+      dealerEmote: null,
       diceRoll: null,
     });
   },
@@ -404,6 +420,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       departedPlayers: [],
       chatMessages: [],
       unreadChatCount: 0,
+      dealerEmote: null,
       diceRoll: null,
     });
   },
@@ -503,6 +520,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (!trimmed) return;
     socket.emit('send_chat', { text: trimmed });
   },
+  sendDealerEmote: (emote) => {
+    socket.emit('send_dealer_emote', { emote });
+  },
+  addStack: (playerId, amount) => {
+    socket.emit('add_stack', { playerId, amount });
+  },
   setChipDenoms: (denominations) => {
     socket.emit('set_chip_denoms', { denominations });
   },
@@ -515,7 +538,7 @@ socket.on('connect', () => {
 });
 
 socket.on('disconnect', () => {
-  useGameStore.setState({ connected: false, connecting: false });
+  useGameStore.setState({ connected: false, connecting: false, dealerEmote: null });
 });
 
 socket.on('room_created', ({ playerId }) => {
@@ -546,6 +569,7 @@ socket.on('game_state', (data) => {
             lastBalance: oldP.balance,
             buyIn: oldP.buyIn,
             departedAt: Date.now(),
+            isDealer: oldP.id === prev.buttonPlayerId,
           });
         }
       }
@@ -650,6 +674,10 @@ socket.on('chat_message', (msg) => {
     chatMessages: [...s.chatMessages, msg].slice(-200), // Keep last 200 messages
     unreadChatCount: s.showChat ? 0 : s.unreadChatCount + 1,
   }));
+});
+
+socket.on('dealer_emote', (emote) => {
+  useGameStore.setState({ dealerEmote: emote });
 });
 
 socket.on('error', ({ message }) => {

@@ -141,6 +141,21 @@ export class TableController {
     return true;
   }
 
+  addStack(hostPlayerId: string, targetPlayerId: string, amount: number): boolean {
+    if (hostPlayerId !== this.hostId) return false;
+    if (this.phase === 'LOBBY') return false;
+    if (!Number.isInteger(amount) || amount <= 0 || amount > 1_000_000) return false;
+
+    const target = this.players.get(targetPlayerId);
+    if (!target || !target.connected) return false;
+    if (this.isHouseDealer(targetPlayerId)) return false;
+
+    // Treat top-ups as additional buy-in so ledger P/L remains meaningful.
+    target.balance += amount;
+    target.buyIn += amount;
+    return true;
+  }
+
   // ─── Initialization ──────────────────────────────────────────────────
 
   private async init() {
@@ -206,6 +221,19 @@ export class TableController {
     // Transfer host
     if (this.hostId === id && this.playerOrder.length > 0) {
       this.hostId = this.playerOrder[0];
+    }
+
+    // If the designated dealer left mid-round, delay reassignment until round reset.
+    // During LOBBY/BETTING we can safely reassign immediately.
+    if (this.buttonPlayerId === id) {
+      if (this.phase === 'LOBBY' || this.phase === 'BETTING') {
+        const nextDealer = this.playerOrder
+          .map((pid) => this.players.get(pid))
+          .find((p): p is ServerPlayer => !!p && p.connected);
+        this.buttonPlayerId = nextDealer?.id ?? null;
+      } else {
+        this.buttonPlayerId = null;
+      }
     }
 
     // If no players left, reset
@@ -303,6 +331,11 @@ export class TableController {
       await this.init();
     }
 
+    if (!this.buttonPlayerId || !this.players.has(this.buttonPlayerId)) {
+      const nextDealer = this.getConnectedPlayers()[0];
+      this.buttonPlayerId = nextDealer?.id ?? null;
+    }
+
     // Reset player round state
     for (const player of this.players.values()) {
       player.hands = [];
@@ -330,6 +363,7 @@ export class TableController {
     if (this.phase !== 'BETTING') return false;
     const player = this.players.get(playerId);
     if (!player || player.hasBet) return false;
+    if (this.isHouseDealer(playerId)) return false;
     if (amount <= 0) return false;
 
     numHands = Math.max(1, Math.min(5, numHands));
@@ -359,7 +393,9 @@ export class TableController {
   }
 
   allBetsPlaced(): boolean {
-    const eligible = this.getConnectedPlayers().filter((p) => !p.isAway);
+    const eligible = this.getConnectedPlayers().filter(
+      (p) => !p.isAway && !this.isHouseDealer(p.id),
+    );
     return eligible.length > 0 && eligible.every((p) => p.hasBet);
   }
 
@@ -724,7 +760,9 @@ export class TableController {
   }
 
   allReady(): boolean {
-    const active = this.getConnectedPlayers().filter((p) => p.hasBet);
+    const active = this.getConnectedPlayers().filter(
+      (p) => p.hasBet && !this.isHouseDealer(p.id),
+    );
     return active.length > 0 && active.every((p) => this.readyPlayers.has(p.id) || p.isAway);
   }
 
@@ -773,6 +811,11 @@ export class TableController {
       player.isReady = false;
     }
 
+    if (!this.buttonPlayerId || !this.players.has(this.buttonPlayerId)) {
+      const nextDealer = this.getConnectedPlayers()[0];
+      this.buttonPlayerId = nextDealer?.id ?? null;
+    }
+
     this.dealerCards = [];
     this.settlements = [];
     this.readyPlayers.clear();
@@ -783,6 +826,10 @@ export class TableController {
 
   // ─── Helpers ─────────────────────────────────────────────────────────
 
+  private isHouseDealer(playerId: string): boolean {
+    return this.buttonPlayerId === playerId;
+  }
+
   private getConnectedPlayers(): ServerPlayer[] {
     return this.playerOrder
       .map((id) => this.players.get(id))
@@ -792,13 +839,24 @@ export class TableController {
   private getActivePlayers(): ServerPlayer[] {
     return this.playerOrder
       .map((id) => this.players.get(id))
-      .filter((p): p is ServerPlayer => !!p && p.hasBet && p.hands.length > 0);
+      .filter(
+        (p): p is ServerPlayer =>
+          !!p && p.hasBet && p.hands.length > 0 && !this.isHouseDealer(p.id),
+      );
   }
 
   private findFirstActivePlayer(): number {
     for (let i = 0; i < this.playerOrder.length; i++) {
       const player = this.players.get(this.playerOrder[i]);
-      if (player?.hasBet && player.hands.length > 0 && player.connected && !player.isAway) return i;
+      if (
+        player?.hasBet &&
+        player.hands.length > 0 &&
+        player.connected &&
+        !player.isAway &&
+        !this.isHouseDealer(player.id)
+      ) {
+        return i;
+      }
     }
     return 0;
   }

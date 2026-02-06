@@ -121,6 +121,28 @@ export interface ChatMessage {
   isSystem?: boolean;
 }
 
+export const DEALER_EMOTE_OPTIONS = [
+  { kind: 'happy', label: 'Happy', glyph: ':)' },
+  { kind: 'sad', label: 'Sad', glyph: ':(' },
+  { kind: 'laugh', label: 'Laugh', glyph: ':D' },
+  { kind: 'wink', label: 'Wink', glyph: ';)' },
+  { kind: 'surprised', label: 'Surprised', glyph: ':O' },
+  { kind: 'angry', label: 'Angry', glyph: '>:(' },
+  { kind: 'cry', label: 'Cry', glyph: ":'(" },
+  { kind: 'love', label: 'Love', glyph: '<3' },
+  { kind: 'nervous', label: 'Nervous', glyph: ':S' },
+  { kind: 'bored', label: 'Bored', glyph: ':|' },
+] as const;
+
+export type DealerEmoteKind = (typeof DEALER_EMOTE_OPTIONS)[number]['kind'];
+
+export interface DealerEmote {
+  playerId: string;
+  playerName: string;
+  emote: DealerEmoteKind;
+  timestamp: number;
+}
+
 // ─── Socket.IO Event Types ────────────────────────────────────────────────────
 
 export interface ClientToServerEvents {
@@ -135,6 +157,8 @@ export interface ClientToServerEvents {
   set_client_seed: (data: { seed: string }) => void;
   toggle_away: () => void;
   send_chat: (data: { text: string }) => void;
+  send_dealer_emote: (data: { emote: DealerEmoteKind }) => void;
+  add_stack: (data: { playerId: string; amount: number }) => void;
   set_chip_denoms: (data: { denominations: number[] }) => void;
 }
 
@@ -145,5 +169,6 @@ export interface ServerToClientEvents {
   /** Fired before the first round to animate the dealer selection dice roll */
   dice_roll: (data: DiceRollResult) => void;
   chat_message: (data: ChatMessage) => void;
+  dealer_emote: (data: DealerEmote) => void;
   error: (data: { message: string }) => void;
 }

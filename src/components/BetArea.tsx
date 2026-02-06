@@ -3,6 +3,7 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore, selectMyPlayer, selectPhase, selectMyIsAway } from '../hooks/useGameState';
 import { useSound } from '../hooks/useSound';
+import { DEALER_EMOTE_OPTIONS } from '../shared/protocol';
 import ChipSelector from './ChipSelector';
 import BalanceChipStack from './BalanceChipStack';
 
@@ -18,6 +19,7 @@ export default function BetArea() {
   const setSideBetInput = useGameStore((s) => s.setSideBetInput);
   const setNumHands = useGameStore((s) => s.setNumHands);
   const placeBet = useGameStore((s) => s.placeBet);
+  const sendDealerEmote = useGameStore((s) => s.sendDealerEmote);
   const isAway = useGameStore(selectMyIsAway);
   const toggleAway = useGameStore((s) => s.toggleAway);
   const { play } = useSound();
@@ -25,13 +27,16 @@ export default function BetArea() {
   if (!tableState || !myPlayer) return null;
 
   const isBetting = phase === 'BETTING';
+  const isDealer = myPlayer.id === tableState.buttonPlayerId;
   const hasBet = myPlayer.hasBet;
   const balance = myPlayer.balance;
   const totalCost = betInput * numHandsInput + sideBetInput;
-  const canDeal = isBetting && !hasBet && betInput > 0 && totalCost <= balance && !isAway;
+  const canDeal = isBetting && !isDealer && !hasBet && betInput > 0 && totalCost <= balance && !isAway;
 
   // Show who has bet / is away
-  const bettingStatus = tableState.players.filter((p) => p.connected);
+  const bettingStatus = tableState.players.filter(
+    (p) => p.connected && p.id !== tableState.buttonPlayerId,
+  );
 
   // Max hands the player can afford
   const maxHands = betInput > 0 ? Math.min(5, Math.floor((balance - sideBetInput) / betInput)) : 1;
@@ -49,7 +54,31 @@ export default function BetArea() {
       {/* Main Controls */}
       <div className="flex flex-col items-center gap-3 flex-1 max-w-lg">
         {/* Away state */}
-        {isAway ? (
+        {isDealer ? (
+          <div className="flex flex-col items-center gap-3 py-4">
+            <div className="text-gold text-lg font-bold">You are the house dealer</div>
+            <p className="text-cream/45 text-sm text-center max-w-xs">
+              Dealers do not place bets or play hands. Send table emotes instead.
+            </p>
+            <div className="flex gap-2 flex-wrap justify-center">
+              {DEALER_EMOTE_OPTIONS.map((option) => (
+                <EmoteButton
+                  key={option.kind}
+                  label={`${option.glyph} ${option.label}`}
+                  onClick={() => {
+                    sendDealerEmote(option.kind);
+                    play('chip');
+                  }}
+                />
+              ))}
+            </div>
+            <div className="flex gap-2 mt-2 flex-wrap justify-center">
+              {bettingStatus.map((p) => (
+                <BetStatusPill key={p.id} player={p} />
+              ))}
+            </div>
+          </div>
+        ) : isAway ? (
           <div className="flex flex-col items-center gap-3 py-4">
             <div className="flex items-center gap-2">
               <div className="w-3 h-3 rounded-full bg-amber-400/60" />
@@ -237,6 +266,21 @@ function BetStatusPill({ player }: { player: { id: string; name: string; hasBet:
     <div className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs ${style}`}>
       {label} {player.name}
     </div>
+  );
+}
+
+function EmoteButton({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <motion.button
+      onClick={onClick}
+      className="px-4 py-2 rounded-lg font-bold text-sm uppercase tracking-wider
+        bg-gradient-to-b from-gold to-gold-dark text-charcoal hover:from-gold-light hover:to-gold
+        transition-all duration-200 shadow-lg cursor-pointer"
+      whileHover={{ scale: 1.05 }}
+      whileTap={{ scale: 0.95 }}
+    >
+      {label}
+    </motion.button>
   );
 }
 

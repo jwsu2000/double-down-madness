@@ -1,11 +1,13 @@
 // ─── Dealer Area — Multiplayer (with Deal Animation + Sweat Reveal) ───────────
 
 import { useState, useEffect, useRef } from 'react';
+import { motion } from 'framer-motion';
 import CardHand from './CardHand';
 import { useGameStore, selectPhase, selectDealerCards } from '../hooks/useGameState';
 import { useDealAnimationContext } from '../hooks/useDealAnimation';
 import { evaluateHand } from '../engine/deck';
 import type { Card as CardType } from '../engine/deck';
+import { DEALER_EMOTE_OPTIONS } from '../shared/protocol';
 
 // ─── Sweat Reveal Timing Constants ──────────────────────────────────────────
 
@@ -13,12 +15,16 @@ const HOLE_FLIP_DELAY = 1000;   // Suspense before flipping the hole card
 const POST_FLIP_PAUSE = 700;    // Pause to let player read the hole card value
 const NEW_CARD_DELAY = 1000;    // Time between each new drawn card
 const FINAL_SETTLE_DELAY = 400; // Grace period before showing results
+const DEALER_EMOTE_GLYPHS = new Map(
+  DEALER_EMOTE_OPTIONS.map((option) => [option.kind, option.glyph]),
+);
 
 export default function DealerArea() {
   const serverCards = useGameStore(selectDealerCards);
   const phase = useGameStore(selectPhase);
   const tableState = useGameStore((s) => s.tableState);
   const setAnimating = useGameStore((s) => s.setAnimating);
+  const dealerEmote = useGameStore((s) => s.dealerEmote);
 
   // Deal animation context (stages cards one-by-one during initial deal)
   const { dealerCards: animatedDealerCards, isDealing } = useDealAnimationContext();
@@ -159,9 +165,22 @@ export default function DealerArea() {
       (r) => r.result === 'DEALER_WIN' || r.result === 'DEALER_BLACKJACK'
     );
   const isBust = allRevealed && hand.isBust;
+  const showDealerEmote = !!dealerEmote && dealerEmote.playerId === tableState?.buttonPlayerId;
+  const emoteText = dealerEmote ? (DEALER_EMOTE_GLYPHS.get(dealerEmote.emote) ?? dealerEmote.emote) : '';
 
   return (
     <div className="flex flex-col items-center">
+      {showDealerEmote && dealerEmote && (
+        <motion.div
+          key={dealerEmote.timestamp}
+          initial={{ opacity: 0, y: 10, scale: 0.9 }}
+          animate={{ opacity: [0, 1, 1, 0], y: [10, 0, 0, -6], scale: [0.9, 1, 1, 0.95] }}
+          transition={{ duration: 2.6, times: [0, 0.15, 0.8, 1] }}
+          className="mb-1 px-3 py-1.5 rounded-full bg-gold/15 border border-gold/30 text-gold text-sm font-bold"
+        >
+          {dealerEmote.playerName}: {emoteText}
+        </motion.div>
+      )}
       <CardHand
         cards={dealerCards}
         isWinner={isWinner && phase === 'SETTLEMENT'}

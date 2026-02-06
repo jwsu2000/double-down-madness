@@ -1,5 +1,6 @@
 // ─── Ledger Drawer — Player Buy-in / Stack / P&L ──────────────────────────────
 
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore, type DepartedPlayer } from '../hooks/useGameState';
 
@@ -9,14 +10,22 @@ export default function LedgerDrawer() {
   const tableState = useGameStore((s) => s.tableState);
   const myPlayerId = useGameStore((s) => s.myPlayerId);
   const departedPlayers = useGameStore((s) => s.departedPlayers);
+  const addStack = useGameStore((s) => s.addStack);
+  const [topUpAmount, setTopUpAmount] = useState(100);
 
-  const activePlayers = tableState?.players ?? [];
+  const dealerPlayerId = tableState?.buttonPlayerId ?? null;
+  const activePlayers = (tableState?.players ?? []).filter((p) => p.id !== dealerPlayerId);
+  const visibleDepartedPlayers = departedPlayers.filter((p) => !p.isDealer);
+  const isHost = !!myPlayerId && myPlayerId === tableState?.hostId;
+  const canTopUpStacks = isHost && tableState?.phase !== 'LOBBY';
+  const normalizedTopUpAmount = Math.max(0, Math.trunc(topUpAmount));
+  const canSubmitTopUp = canTopUpStacks && normalizedTopUpAmount > 0;
 
   // Compute totals across all players (active + departed)
   const totalBuyIn = activePlayers.reduce((sum, p) => sum + p.buyIn, 0)
-    + departedPlayers.reduce((sum, p) => sum + p.buyIn, 0);
+    + visibleDepartedPlayers.reduce((sum, p) => sum + p.buyIn, 0);
   const activeStack = activePlayers.reduce((sum, p) => sum + p.balance, 0);
-  const departedStack = departedPlayers.reduce((sum, p) => sum + p.lastBalance, 0);
+  const departedStack = visibleDepartedPlayers.reduce((sum, p) => sum + p.lastBalance, 0);
   const totalStack = activeStack + departedStack;
   const totalPL = totalStack - totalBuyIn;
 
@@ -50,7 +59,7 @@ export default function LedgerDrawer() {
                     <h2 className="text-gold font-bold text-lg font-[Georgia]">Ledger</h2>
                     <span className="text-cream/30 text-[10px]">
                       Room {tableState?.roomCode ?? ''} &middot; {activePlayers.length} active
-                      {departedPlayers.length > 0 && `, ${departedPlayers.length} left`}
+                      {visibleDepartedPlayers.length > 0 && `, ${visibleDepartedPlayers.length} left`}
                     </span>
                   </div>
                 </div>
@@ -63,6 +72,38 @@ export default function LedgerDrawer() {
                   </svg>
                 </button>
               </div>
+
+              {isHost && (
+                <div className="mb-4 p-3 rounded-lg border border-charcoal-lighter bg-navy/40">
+                  <div className="flex items-center justify-between">
+                    <span className="text-cream/60 text-xs uppercase tracking-wider font-medium">
+                      Host Stack Top-Up
+                    </span>
+                    <span className="text-[10px] text-cream/35">
+                      {canTopUpStacks ? 'Enabled' : 'Available after game starts'}
+                    </span>
+                  </div>
+                  <div className="mt-2 flex items-center gap-2">
+                    <label className="text-cream/45 text-xs uppercase tracking-wider">Amount</label>
+                    <div className="relative">
+                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gold text-xs">$</span>
+                      <input
+                        type="number"
+                        min={1}
+                        step={1}
+                        value={normalizedTopUpAmount || ''}
+                        onChange={(e) => {
+                          const next = parseInt(e.target.value, 10);
+                          setTopUpAmount(Number.isFinite(next) ? Math.max(0, next) : 0);
+                        }}
+                        disabled={!canTopUpStacks}
+                        className="w-28 bg-charcoal-light border border-charcoal-lighter rounded px-5 py-1.5
+                          text-cream text-sm disabled:opacity-50"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Table Header */}
               <div className="grid grid-cols-[1fr_80px_90px_90px] gap-2 px-3 py-2 text-[10px] uppercase tracking-wider text-cream/30 border-b border-charcoal-lighter">
@@ -77,6 +118,7 @@ export default function LedgerDrawer() {
                 {activePlayers.map((player) => {
                   const pl = player.balance - player.buyIn;
                   const isMe = player.id === myPlayerId;
+                  const canTopUpPlayer = canSubmitTopUp && player.connected;
 
                   return (
                     <div
@@ -86,24 +128,40 @@ export default function LedgerDrawer() {
                       }`}
                     >
                       {/* Name */}
-                      <div className="flex items-center gap-2 min-w-0">
-                        <div
-                          className={`w-2 h-2 rounded-full shrink-0 ${
-                            player.connected ? 'bg-casino-green' : 'bg-cream/20'
-                          }`}
-                        />
-                        <span className="text-cream text-sm font-medium truncate">
-                          {player.name}
-                        </span>
-                        {isMe && (
-                          <span className="text-[9px] text-gold/60 bg-gold/10 px-1.5 py-0.5 rounded font-medium shrink-0">
-                            YOU
+                      <div className="flex flex-col gap-1 min-w-0">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div
+                            className={`w-2 h-2 rounded-full shrink-0 ${
+                              player.connected ? 'bg-casino-green' : 'bg-cream/20'
+                            }`}
+                          />
+                          <span className="text-cream text-sm font-medium truncate">
+                            {player.name}
                           </span>
-                        )}
-                        {player.isAway && (
-                          <span className="text-[8px] text-amber-400/70 bg-amber-400/10 px-1.5 py-0.5 rounded font-medium shrink-0">
-                            AWAY
-                          </span>
+                          {isMe && (
+                            <span className="text-[9px] text-gold/60 bg-gold/10 px-1.5 py-0.5 rounded font-medium shrink-0">
+                              YOU
+                            </span>
+                          )}
+                          {player.isAway && (
+                            <span className="text-[8px] text-amber-400/70 bg-amber-400/10 px-1.5 py-0.5 rounded font-medium shrink-0">
+                              AWAY
+                            </span>
+                          )}
+                        </div>
+                        {canTopUpStacks && (
+                          <button
+                            onClick={() => addStack(player.id, normalizedTopUpAmount)}
+                            disabled={!canTopUpPlayer}
+                            className={`w-fit px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider transition-colors ${
+                              canTopUpPlayer
+                                ? 'bg-gold/20 text-gold hover:bg-gold/30'
+                                : 'bg-charcoal-lighter text-cream/20 cursor-not-allowed'
+                            }`}
+                            title={canTopUpPlayer ? `Add $${normalizedTopUpAmount} to ${player.name}` : 'Unavailable'}
+                          >
+                            Add ${normalizedTopUpAmount.toLocaleString()}
+                          </button>
                         )}
                       </div>
 
@@ -125,7 +183,7 @@ export default function LedgerDrawer() {
               </div>
 
               {/* Departed Players */}
-              {departedPlayers.length > 0 && (
+              {visibleDepartedPlayers.length > 0 && (
                 <>
                   <div className="px-3 pt-4 pb-1">
                     <span className="text-cream/25 text-[10px] uppercase tracking-wider font-medium">
@@ -133,7 +191,7 @@ export default function LedgerDrawer() {
                     </span>
                   </div>
                   <div className="divide-y divide-charcoal-lighter/30">
-                    {departedPlayers.map((dp) => (
+                    {visibleDepartedPlayers.map((dp) => (
                       <DepartedRow key={dp.id} player={dp} />
                     ))}
                   </div>
@@ -141,7 +199,7 @@ export default function LedgerDrawer() {
               )}
 
               {/* Totals Row */}
-              {(activePlayers.length + departedPlayers.length) > 1 && (
+              {(activePlayers.length + visibleDepartedPlayers.length) > 1 && (
                 <div className="grid grid-cols-[1fr_80px_90px_90px] gap-2 px-3 py-3 items-center border-t-2 border-gold/20 mt-1">
                   <div className="text-cream/50 text-xs font-bold uppercase tracking-wider">
                     Table Total
@@ -160,7 +218,7 @@ export default function LedgerDrawer() {
               <div className="mt-4 pt-3 border-t border-charcoal-lighter">
                 <p className="text-cream/25 text-[10px] text-center">
                   P/L is calculated as current stack minus buy-in.
-                  {departedPlayers.length > 0 && ' Departed players show their final balance.'}
+                  {visibleDepartedPlayers.length > 0 && ' Departed players show their final balance.'}
                 </p>
               </div>
             </div>
