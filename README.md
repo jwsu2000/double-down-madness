@@ -29,13 +29,13 @@ This repo is configured for split hosting:
 
 1. Create a Railway service from this repo.
 2. Railway uses `railway.json`:
-   - Build: `npm ci && npm run build`
+   - Build: `npm install --include=dev && npm run build`
    - Start: `npx tsx server/index.ts`
 3. Set Railway environment variable:
    - `CLIENT_ORIGIN=https://your-vercel-app.vercel.app`
    - You can provide multiple origins as CSV.
 4. If Railway still uses an older Node version, set:
-   - `NIXPACKS_NODE_VERSION=20`
+   - `NIXPACKS_NODE_VERSION=20.19.0`
 
 ### 2) Deploy frontend to Vercel
 
