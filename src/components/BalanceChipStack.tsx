@@ -4,21 +4,18 @@ import { useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChipDisc } from './CasinoChip';
 import type { ChipValue } from '../engine/rules';
-import { useGameStore, selectMyPlayer, selectPhase } from '../hooks/useGameState';
+import { useGameStore, selectMyPlayer, selectPhase, selectChipDenominations, useDisplayBalance } from '../hooks/useGameState';
 
-function balanceToChipStack(balance: number): ChipValue[] {
-  if (balance <= 0) return [];
+function balanceToChipStack(balance: number, denominations: number[]): ChipValue[] {
+  if (balance <= 0 || denominations.length === 0) return [];
 
   let remaining = balance;
   const MAX_CHIPS = 30;
 
-  const groups: [ChipValue, number][] = [
-    [500, 0],
-    [100, 0],
-    [25, 0],
-    [5, 0],
-    [1, 0],
-  ];
+  // Sort denominations descending for greedy decomposition
+  const sorted = [...denominations].sort((a, b) => b - a);
+
+  const groups: [number, number][] = sorted.map((d) => [d, 0]);
 
   for (const g of groups) {
     g[1] = Math.floor(remaining / g[0]);
@@ -27,24 +24,20 @@ function balanceToChipStack(balance: number): ChipValue[] {
 
   const totalChips = () => groups.reduce((s, g) => s + g[1], 0);
 
-  while (groups[0][1] > 0 && totalChips() - 1 + 20 <= MAX_CHIPS) {
-    groups[0][1]--;
-    groups[2][1] += 20;
-  }
-
-  while (groups[1][1] > 0 && totalChips() - 1 + 4 <= MAX_CHIPS) {
-    groups[1][1]--;
-    groups[2][1] += 4;
-  }
-
-  while (groups[2][1] > 0 && totalChips() - 1 + 5 <= MAX_CHIPS) {
-    groups[2][1]--;
-    groups[3][1] += 5;
+  // Break larger denominations into smaller ones to fill up the visual stack (up to MAX_CHIPS)
+  for (let i = 0; i < groups.length - 1; i++) {
+    const nextDenom = groups[i + 1][0];
+    const ratio = Math.floor(groups[i][0] / nextDenom);
+    if (ratio < 2) continue;
+    while (groups[i][1] > 0 && totalChips() - 1 + ratio <= MAX_CHIPS) {
+      groups[i][1]--;
+      groups[i + 1][1] += ratio;
+    }
   }
 
   const chips: ChipValue[] = [];
   for (const [value, count] of groups) {
-    for (let i = 0; i < count; i++) chips.push(value);
+    for (let j = 0; j < count; j++) chips.push(value);
   }
 
   return chips;
@@ -54,12 +47,16 @@ export default function BalanceChipStack() {
   const myPlayer = useGameStore(selectMyPlayer);
   const phase = useGameStore(selectPhase);
   const betInput = useGameStore((s) => s.betInput);
+  const chipDenominations = useGameStore(selectChipDenominations);
 
-  const balance = myPlayer?.balance ?? 0;
+  const balance = useDisplayBalance();
   const hasBet = myPlayer?.hasBet ?? false;
   const displayBalance = phase === 'BETTING' && !hasBet ? balance - betInput : balance;
 
-  const chips = useMemo(() => balanceToChipStack(Math.max(0, displayBalance)), [displayBalance]);
+  const chips = useMemo(
+    () => balanceToChipStack(Math.max(0, displayBalance), chipDenominations),
+    [displayBalance, chipDenominations],
+  );
 
   if (chips.length === 0) return null;
 

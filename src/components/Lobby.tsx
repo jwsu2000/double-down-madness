@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '../hooks/useGameState';
+import { STARTING_BALANCE } from '../engine/rules';
 
 export default function Lobby() {
   const connected = useGameStore((s) => s.connected);
@@ -14,6 +15,7 @@ export default function Lobby() {
 
   const [name, setName] = useState('');
   const [roomCode, setRoomCode] = useState('');
+  const [buyIn, setBuyIn] = useState(STARTING_BALANCE);
   const [mode, setMode] = useState<'menu' | 'join'>('menu');
 
   // Auto-connect on mount
@@ -21,15 +23,15 @@ export default function Lobby() {
     connect();
   }, [connect]);
 
-  const canCreate = connected && name.trim().length > 0;
-  const canJoin = connected && name.trim().length > 0 && roomCode.trim().length === 4;
+  const canCreate = connected && name.trim().length > 0 && buyIn > 0;
+  const canJoin = connected && name.trim().length > 0 && roomCode.trim().length === 4 && buyIn > 0;
 
   const handleCreate = () => {
-    if (canCreate) createRoom(name.trim());
+    if (canCreate) createRoom(name.trim(), buyIn);
   };
 
   const handleJoin = () => {
-    if (canJoin) joinRoom(roomCode.trim(), name.trim());
+    if (canJoin) joinRoom(roomCode.trim(), name.trim(), buyIn);
   };
 
   return (
@@ -85,6 +87,32 @@ export default function Lobby() {
               maxLength={12}
               autoFocus
             />
+          </div>
+
+          {/* Buy-In Input */}
+          <div className="mb-5">
+            <label className="block text-cream/50 text-xs uppercase tracking-wider mb-2">
+              Buy-In
+            </label>
+            <div className="relative">
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gold font-bold text-sm pointer-events-none">$</span>
+              <input
+                type="number"
+                value={buyIn || ''}
+                onChange={(e) => {
+                  const val = parseInt(e.target.value, 10);
+                  setBuyIn(isNaN(val) ? 0 : Math.max(0, val));
+                }}
+                placeholder="1000"
+                min={1}
+                className="w-full bg-navy/80 text-cream text-sm pl-8 pr-4 py-3 rounded-lg border border-charcoal-lighter
+                  focus:border-gold/50 focus:outline-none transition-colors placeholder-cream/20
+                  [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+              />
+            </div>
+            {buyIn > 0 && buyIn < 10 && (
+              <p className="text-gold/50 text-[10px] mt-1">Minimum recommended: $10</p>
+            )}
           </div>
 
           {/* Error Message */}

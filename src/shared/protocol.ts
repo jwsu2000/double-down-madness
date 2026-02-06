@@ -16,6 +16,8 @@ export interface TableHand {
   justDoubledOnLoneAce: boolean;
   result: HandResult | null;
   message: string;
+  /** Action log: one entry per card after the initial deal. 'H' = Hit, 'D' = Double */
+  actions: ('H' | 'D')[];
 }
 
 // ─── Player visible at the table ──────────────────────────────────────────────
@@ -24,6 +26,7 @@ export interface TablePlayer {
   id: string;
   name: string;
   balance: number;
+  buyIn: number;
   hands: TableHand[];
   currentBet: number;      // per-hand bet amount
   sideBet: number;
@@ -81,11 +84,30 @@ export interface ClientTableState {
   activeHandIndex: number;
   myPlayerId: string;
   hostId: string;
+  /** The player currently holding the "dealer button" */
+  buttonPlayerId: string | null;
   settlement: PlayerSettlement[] | null;
   roundNumber: number;
   serverSeedHash: string;
   previousServerSeed?: string;
   provablyFair: ProvablyFairInfo;
+  chipDenominations: number[];
+}
+
+// ─── Dice Roll Event ─────────────────────────────────────────────────────────
+
+export interface DiceRollResult {
+  /** The final dice values [die1, die2] */
+  dice: [number, number];
+  /** Total of both dice */
+  total: number;
+  /** Ordered list of player IDs being rolled for */
+  playerIds: string[];
+  /** Player names for display */
+  playerNames: string[];
+  /** The player selected as the dealer (button holder) */
+  selectedPlayerId: string;
+  selectedPlayerName: string;
 }
 
 // ─── Chat ─────────────────────────────────────────────────────────────────────
@@ -102,8 +124,8 @@ export interface ChatMessage {
 // ─── Socket.IO Event Types ────────────────────────────────────────────────────
 
 export interface ClientToServerEvents {
-  create_room: (data: { playerName: string }) => void;
-  join_room: (data: { roomCode: string; playerName: string }) => void;
+  create_room: (data: { playerName: string; buyIn: number }) => void;
+  join_room: (data: { roomCode: string; playerName: string; buyIn: number }) => void;
   leave_room: () => void;
   start_round: () => void;
   place_bet: (data: { amount: number; sideBet: number; numHands: number }) => void;
@@ -113,12 +135,15 @@ export interface ClientToServerEvents {
   set_client_seed: (data: { seed: string }) => void;
   toggle_away: () => void;
   send_chat: (data: { text: string }) => void;
+  set_chip_denoms: (data: { denominations: number[] }) => void;
 }
 
 export interface ServerToClientEvents {
   room_created: (data: { roomCode: string; playerId: string }) => void;
   room_joined: (data: { roomCode: string; playerId: string }) => void;
   game_state: (data: ClientTableState) => void;
+  /** Fired before the first round to animate the dealer selection dice roll */
+  dice_roll: (data: DiceRollResult) => void;
   chat_message: (data: ChatMessage) => void;
   error: (data: { message: string }) => void;
 }

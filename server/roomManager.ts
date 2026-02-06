@@ -36,7 +36,7 @@ export class RoomManager {
   private rooms = new Map<string, Room>();
   private socketToRoom = new Map<string, string>();
 
-  createRoom(socketId: string, playerName: string): { roomCode: string; playerId: string } {
+  createRoom(socketId: string, playerName: string, buyIn?: number): { roomCode: string; playerId: string } {
     // Generate unique room code
     let code = generateRoomCode();
     while (this.rooms.has(code)) {
@@ -45,7 +45,7 @@ export class RoomManager {
 
     const playerId = generatePlayerId();
     const table = new TableController(code);
-    table.addPlayer(playerId, playerName, socketId);
+    table.addPlayer(playerId, playerName, socketId, buyIn);
 
     const room: Room = {
       code,
@@ -60,7 +60,7 @@ export class RoomManager {
     return { roomCode: code, playerId };
   }
 
-  joinRoom(socketId: string, roomCode: string, playerName: string): { playerId?: string; error?: string } {
+  joinRoom(socketId: string, roomCode: string, playerName: string, buyIn?: number): { playerId?: string; error?: string } {
     const code = roomCode.toUpperCase();
     const room = this.rooms.get(code);
     if (!room) return { error: 'Room not found' };
@@ -74,7 +74,7 @@ export class RoomManager {
     }
 
     const playerId = generatePlayerId();
-    room.table.addPlayer(playerId, playerName, socketId);
+    room.table.addPlayer(playerId, playerName, socketId, buyIn);
     room.socketToPlayer.set(socketId, playerId);
     room.playerToSocket.set(playerId, socketId);
     this.socketToRoom.set(socketId, code);

@@ -2,6 +2,7 @@
 
 import { motion } from 'framer-motion';
 import { useGameStore, selectPhase, selectIsMyTurn, selectMyActions, selectMyNextDouble } from '../hooks/useGameState';
+import { useDealAnimationContext } from '../hooks/useDealAnimation';
 import { useSound } from '../hooks/useSound';
 
 export default function ActionButtons() {
@@ -16,6 +17,40 @@ export default function ActionButtons() {
   const doDouble = useGameStore((s) => s.doDouble);
   const insurance = useGameStore((s) => s.insurance);
   const { play } = useSound();
+  const { isDealing } = useDealAnimationContext();
+
+  // While the deal animation is running, show "Dealing..." instead of action buttons
+  if (isDealing) {
+    return (
+      <div className="flex items-center justify-center gap-2 py-3">
+        <motion.div
+          className="flex items-center gap-2"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.3 }}
+        >
+          <motion.div
+            className="w-1.5 h-1.5 rounded-full bg-gold"
+            animate={{ opacity: [1, 0.2, 1] }}
+            transition={{ duration: 0.8, repeat: Infinity, delay: 0 }}
+          />
+          <motion.div
+            className="w-1.5 h-1.5 rounded-full bg-gold"
+            animate={{ opacity: [1, 0.2, 1] }}
+            transition={{ duration: 0.8, repeat: Infinity, delay: 0.2 }}
+          />
+          <motion.div
+            className="w-1.5 h-1.5 rounded-full bg-gold"
+            animate={{ opacity: [1, 0.2, 1] }}
+            transition={{ duration: 0.8, repeat: Infinity, delay: 0.4 }}
+          />
+          <span className="text-gold/60 text-sm uppercase tracking-widest font-medium ml-1">
+            Dealing
+          </span>
+        </motion.div>
+      </div>
+    );
+  }
 
   // Insurance phase
   if (phase === 'INSURANCE_OFFERED') {

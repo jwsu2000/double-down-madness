@@ -1,7 +1,10 @@
 // ─── Basic Strategy Drawer ─────────────────────────────────────────────────────
 
+import { useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useGameStore } from '../hooks/useGameState';
+import { useGameStore, selectMyPlayer, selectIsMyTurn, selectDealerCards } from '../hooks/useGameState';
+import { evaluateHand } from '../engine/deck';
+import type { Card, Rank } from '../engine/deck';
 
 // ─── Strategy Data ───────────────────────────────────────────────────────────
 
@@ -59,14 +62,45 @@ function cellText(action: Action): string {
   }
 }
 
+// ─── Helpers: Map hand state → chart coordinates ────────────────────────────
+
+function dealerRankToColIndex(rank: Rank): number {
+  // DEALER_COLS: ['2','3','4','5','6','7','8','9','10','A']
+  if (rank === 'A') return 9;
+  if (rank === 'K' || rank === 'Q' || rank === 'J') return 8; // 10-value
+  return parseInt(rank, 10) - 2; // '2'→0, '3'→1, etc.
+}
+
+function findHardRowIndex(total: number): number {
+  // HARD_ROWS labels: '2'..'16', '17+'
+  if (total >= 17) return HARD_ROWS.length - 1; // '17+'
+  for (let i = 0; i < HARD_ROWS.length; i++) {
+    if (HARD_ROWS[i].label === String(total)) return i;
+  }
+  return -1;
+}
+
+function findSoftRowIndex(total: number): number {
+  // SOFT_ROWS labels: '12'..'18', '19+'
+  if (total >= 19) return SOFT_ROWS.length - 1; // '19+'
+  for (let i = 0; i < SOFT_ROWS.length; i++) {
+    if (SOFT_ROWS[i].label === String(total)) return i;
+  }
+  return -1;
+}
+
 // ─── Strategy Table Component ────────────────────────────────────────────────
 
 function StrategyTable({
   title,
   rows,
+  activeRow,
+  activeCol,
 }: {
   title: string;
   rows: { label: string; actions: Action[] }[];
+  activeRow: number; // -1 if none
+  activeCol: number; // -1 if none
 }) {
   return (
     <div>
@@ -80,10 +114,14 @@ function StrategyTable({
               <th className="bg-charcoal-lighter text-cream/60 px-2 py-1.5 text-left font-bold border-b border-charcoal-lighter sticky left-0 z-10 min-w-[36px]">
                 {title.includes('Hard') ? 'Hard' : 'Soft'}
               </th>
-              {DEALER_COLS.map((col) => (
+              {DEALER_COLS.map((col, ci) => (
                 <th
                   key={col}
-                  className="bg-charcoal-lighter text-cream/60 px-1.5 py-1.5 text-center font-bold border-b border-charcoal-lighter min-w-[28px]"
+                  className={`px-1.5 py-1.5 text-center font-bold border-b border-charcoal-lighter min-w-[28px] transition-colors duration-200
+                    ${activeCol === ci && activeRow >= 0
+                      ? 'bg-gold/30 text-gold'
+                      : 'bg-charcoal-lighter text-cream/60'
+                    }`}
                 >
                   {col}
                 </th>
@@ -91,21 +129,34 @@ function StrategyTable({
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => (
-              <tr key={row.label}>
-                <td className="bg-charcoal-lighter/80 text-cream/80 px-2 py-1 font-bold border-b border-charcoal-lighter/50 sticky left-0 z-10">
-                  {row.label}
-                </td>
-                {row.actions.map((action, i) => (
-                  <td
-                    key={i}
-                    className={`px-1.5 py-1 text-center border-b border-charcoal-lighter/30 ${cellBg(action)} ${cellText(action)}`}
-                  >
-                    {action}
+            {rows.map((row, ri) => {
+              const isActiveRow = ri === activeRow;
+              return (
+                <tr key={row.label}>
+                  <td className={`px-2 py-1 font-bold border-b border-charcoal-lighter/50 sticky left-0 z-10 transition-colors duration-200
+                    ${isActiveRow && activeCol >= 0
+                      ? 'bg-gold/30 text-gold'
+                      : 'bg-charcoal-lighter/80 text-cream/80'
+                    }`}>
+                    {row.label}
                   </td>
-                ))}
-              </tr>
-            ))}
+                  {row.actions.map((action, ci) => {
+                    const isHighlighted = isActiveRow && ci === activeCol;
+                    return (
+                      <td
+                        key={ci}
+                        className={`px-1.5 py-1 text-center border-b border-charcoal-lighter/30 transition-all duration-200
+                          ${cellBg(action)} ${cellText(action)}
+                          ${isHighlighted ? 'ring-2 ring-gold ring-inset scale-110 z-20 relative shadow-[0_0_12px_rgba(212,168,67,0.6)]' : ''}
+                        `}
+                      >
+                        {action}
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -118,6 +169,44 @@ function StrategyTable({
 export default function BasicStrategyDrawer() {
   const show = useGameStore((s) => s.showStrategy);
   const toggle = useGameStore((s) => s.toggleStrategy);
+  const isMyTurn = useGameStore(selectIsMyTurn);
+  const myPlayer = useGameStore(selectMyPlayer);
+  const dealerCards = useGameStore(selectDealerCards);
+  const tableState = useGameStore((s) => s.tableState);
+
+  // Determine the active chart cell based on current hand state
+  const highlight = useMemo(() => {
+    if (!isMyTurn || !myPlayer || !dealerCards.length || !tableState) {
+      return { hardRow: -1, hardCol: -1, softRow: -1, softCol: -1 };
+    }
+
+    const activeHandIdx = tableState.activeHandIndex ?? 0;
+    const hand = myPlayer.hands[activeHandIdx];
+    if (!hand || hand.cards.length === 0) {
+      return { hardRow: -1, hardCol: -1, softRow: -1, softCol: -1 };
+    }
+
+    // Evaluate the player's current hand
+    const handVal = evaluateHand(hand.cards);
+
+    // Find dealer upcard (first face-up card)
+    const dealerUpcard = dealerCards.find((c: Card) => c.faceUp);
+    if (!dealerUpcard) {
+      return { hardRow: -1, hardCol: -1, softRow: -1, softCol: -1 };
+    }
+
+    const colIdx = dealerRankToColIndex(dealerUpcard.rank);
+
+    if (handVal.isSoft) {
+      // Soft hand — highlight in soft table
+      const softIdx = findSoftRowIndex(handVal.best);
+      return { hardRow: -1, hardCol: -1, softRow: softIdx, softCol: colIdx };
+    } else {
+      // Hard hand — highlight in hard table
+      const hardIdx = findHardRowIndex(handVal.best);
+      return { hardRow: hardIdx, hardCol: colIdx, softRow: -1, softCol: -1 };
+    }
+  }, [isMyTurn, myPlayer, dealerCards, tableState]);
 
   return (
     <AnimatePresence>
@@ -160,6 +249,20 @@ export default function BasicStrategyDrawer() {
 
             {/* Content */}
             <div className="flex-1 overflow-y-auto p-5 space-y-6">
+              {/* Active hand indicator */}
+              {isMyTurn && (highlight.hardRow >= 0 || highlight.softRow >= 0) && (
+                <motion.div
+                  initial={{ opacity: 0, y: -8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="flex items-center gap-2 bg-gold/10 border border-gold/30 rounded-lg px-3 py-2"
+                >
+                  <div className="w-2 h-2 rounded-full bg-gold animate-pulse" />
+                  <span className="text-gold text-xs font-medium">
+                    Your current hand is highlighted below
+                  </span>
+                </motion.div>
+              )}
+
               {/* Explanation */}
               <div className="text-cream/50 text-xs leading-relaxed">
                 <p className="mb-2">
@@ -190,10 +293,20 @@ export default function BasicStrategyDrawer() {
               </div>
 
               {/* Hard Totals Table */}
-              <StrategyTable title="Hard Totals" rows={HARD_ROWS} />
+              <StrategyTable
+                title="Hard Totals"
+                rows={HARD_ROWS}
+                activeRow={highlight.hardRow}
+                activeCol={highlight.hardCol}
+              />
 
               {/* Soft Totals Table */}
-              <StrategyTable title="Soft Totals" rows={SOFT_ROWS} />
+              <StrategyTable
+                title="Soft Totals"
+                rows={SOFT_ROWS}
+                activeRow={highlight.softRow}
+                activeCol={highlight.softCol}
+              />
 
               {/* Footer Note */}
               <div className="text-cream/30 text-[10px] leading-relaxed border-t border-charcoal-lighter pt-4">

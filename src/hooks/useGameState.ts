@@ -2,9 +2,9 @@
 
 import { create } from 'zustand';
 import { socket } from './useSocket';
-import type { ClientTableState, TablePlayer, PlayerSettlement, TablePhase, ProvablyFairInfo, ChatMessage } from '../shared/protocol';
+import type { ClientTableState, TablePlayer, PlayerSettlement, TablePhase, ProvablyFairInfo, ChatMessage, DiceRollResult } from '../shared/protocol';
 import type { Card } from '../engine/deck';
-import { getAvailableActions, totalWager, nextDoubleWager, type AvailableActions } from '../engine/rules';
+import { getAvailableActions, totalWager, nextDoubleWager, STARTING_BALANCE, DEFAULT_CHIP_DENOMINATIONS, type AvailableActions } from '../engine/rules';
 
 // ─── Stable constants (never create new refs in selectors) ────────────────────
 
@@ -28,6 +28,8 @@ export interface PlayerHandEntryHand {
   result: string;
   resultLabel: string;
   payout: number;
+  /** Action log: one entry per card after the initial deal. 'H' = Hit, 'D' = Double */
+  actions: ('H' | 'D')[];
 }
 
 export interface PlayerHandEntry {
@@ -55,6 +57,7 @@ export interface DepartedPlayer {
   id: string;
   name: string;
   lastBalance: number;
+  buyIn: number;
   departedAt: number;
 }
 
@@ -89,6 +92,8 @@ interface GameStore {
   _roomCode: string;
   _provablyFair: ProvablyFairInfo;
   _myIsAway: boolean;
+  _myBuyIn: number;
+  _chipDenominations: number[];
 
   // Local betting input
   betInput: number;
@@ -110,6 +115,9 @@ interface GameStore {
   chatMessages: ChatMessage[];
   unreadChatCount: number;
 
+  // Dice roll (dealer selection)
+  diceRoll: DiceRollResult | null;
+
   // Local session data
   departedPlayers: DepartedPlayer[];
   handHistory: HandRecord[];
@@ -118,6 +126,7 @@ interface GameStore {
     wins: number;
     losses: number;
     pushes: number;
+    push22s: number;
     blackjacks: number;
     biggestWin: number;
     totalWagered: number;
@@ -127,8 +136,8 @@ interface GameStore {
   connect: () => void;
   disconnect: () => void;
   setMyName: (name: string) => void;
-  createRoom: (name: string) => void;
-  joinRoom: (code: string, name: string) => void;
+  createRoom: (name: string, buyIn: number) => void;
+  joinRoom: (code: string, name: string, buyIn: number) => void;
   leaveRoom: () => void;
   startRound: () => void;
   placeBet: () => void;
@@ -160,6 +169,7 @@ interface GameStore {
   setAnimating: (v: boolean) => void;
   clearError: () => void;
   sendChat: (text: string) => void;
+  setChipDenoms: (denominations: number[]) => void;
 }
 
 // ─── Default values ───────────────────────────────────────────────────────────
@@ -169,6 +179,7 @@ const defaultStats = {
   wins: 0,
   losses: 0,
   pushes: 0,
+  push22s: 0,
   blackjacks: 0,
   biggestWin: 0,
   totalWagered: 0,
@@ -242,6 +253,8 @@ function computeDerived(data: ClientTableState, myPlayerId: string | null) {
     _roomCode: data.roomCode,
     _provablyFair: data.provablyFair ?? EMPTY_PF,
     _myIsAway: myPlayer?.isAway ?? false,
+    _myBuyIn: myPlayer?.buyIn ?? STARTING_BALANCE,
+    _chipDenominations: data.chipDenominations ?? DEFAULT_CHIP_DENOMINATIONS,
   };
 }
 
@@ -275,6 +288,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
   _roomCode: '',
   _provablyFair: EMPTY_PF,
   _myIsAway: false,
+  _myBuyIn: STARTING_BALANCE,
+  _chipDenominations: [...DEFAULT_CHIP_DENOMINATIONS],
 
   // Local
   betInput: 10,
@@ -294,6 +309,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   chatMessages: [],
   unreadChatCount: 0,
+
+  diceRoll: null,
 
   departedPlayers: [],
   handHistory: [],
@@ -335,9 +352,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
       _roomCode: '',
       _provablyFair: EMPTY_PF,
       _myIsAway: false,
+      _myBuyIn: STARTING_BALANCE,
+      _chipDenominations: [...DEFAULT_CHIP_DENOMINATIONS],
       departedPlayers: [],
       chatMessages: [],
       unreadChatCount: 0,
+      diceRoll: null,
     });
   },
 
@@ -345,14 +365,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   // ─── Room Actions ───────────────────────────────────────────────────
 
-  createRoom: (name) => {
+  createRoom: (name, buyIn) => {
     set({ myName: name });
-    socket.emit('create_room', { playerName: name });
+    socket.emit('create_room', { playerName: name, buyIn });
   },
 
-  joinRoom: (code, name) => {
+  joinRoom: (code, name, buyIn) => {
     set({ myName: name });
-    socket.emit('join_room', { roomCode: code.toUpperCase(), playerName: name });
+    socket.emit('join_room', { roomCode: code.toUpperCase(), playerName: name, buyIn });
   },
 
   leaveRoom: () => {
@@ -379,9 +399,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
       _roomCode: '',
       _provablyFair: EMPTY_PF,
       _myIsAway: false,
+      _myBuyIn: STARTING_BALANCE,
+      _chipDenominations: [...DEFAULT_CHIP_DENOMINATIONS],
       departedPlayers: [],
       chatMessages: [],
       unreadChatCount: 0,
+      diceRoll: null,
     });
   },
 
@@ -480,6 +503,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (!trimmed) return;
     socket.emit('send_chat', { text: trimmed });
   },
+  setChipDenoms: (denominations) => {
+    socket.emit('set_chip_denoms', { denominations });
+  },
 }));
 
 // ─── Socket Event Handlers (set up once, outside the store) ───────────────────
@@ -518,6 +544,7 @@ socket.on('game_state', (data) => {
             id: oldP.id,
             name: oldP.name,
             lastBalance: oldP.balance,
+            buyIn: oldP.buyIn,
             departedAt: Date.now(),
           });
         }
@@ -553,6 +580,8 @@ socket.on('game_state', (data) => {
             if (hr.payout > stats.biggestWin) stats.biggestWin = hr.payout;
           } else if (hr.result === 'DEALER_WIN' || hr.result === 'DEALER_BLACKJACK') {
             stats.losses++;
+          } else if (hr.result === 'PUSH_22') {
+            stats.push22s++;
           } else {
             stats.pushes++;
           }
@@ -581,6 +610,7 @@ socket.on('game_state', (data) => {
                 result: hr?.result ?? h.result ?? '',
                 resultLabel: hr?.message ?? h.message ?? '',
                 payout: hr?.payout ?? 0,
+                actions: [...(h.actions ?? [])],
               };
             });
             return {
@@ -609,6 +639,10 @@ socket.on('game_state', (data) => {
       });
     }
   }
+});
+
+socket.on('dice_roll', (data) => {
+  useGameStore.setState({ diceRoll: data });
 });
 
 socket.on('chat_message', (msg) => {
@@ -641,3 +675,132 @@ export const selectMyNextDouble = (s: GameStore) => s._myNextDouble;
 export const selectMyTotalWager = (s: GameStore) => s._myTotalWager;
 export const selectProvablyFair = (s: GameStore) => s._provablyFair;
 export const selectMyIsAway = (s: GameStore) => s._myIsAway;
+export const selectMyBuyIn = (s: GameStore) => s._myBuyIn;
+export const selectChipDenominations = (s: GameStore) => s._chipDenominations;
+
+// ─── Settlement Timing Constants (must match PlayerArea) ─────────────────────
+// These control the cascading reveal of results after the dealer's sweat reveal.
+
+import { useRef, useState, useEffect } from 'react';
+
+export const SETTLEMENT_TIMING = {
+  RESULT_REVEAL_BASE: 600,    // delay before first player result
+  RESULT_STAGGER_PER: 350,    // stagger between each player's results
+  BALANCE_EXTRA: 200,         // extra delay after last player result for balance
+  BANNER_EXTRA: 400,          // extra delay after last player result for banner/chips
+} as const;
+
+const RESULT_REVEAL_BASE = SETTLEMENT_TIMING.RESULT_REVEAL_BASE;
+const RESULT_STAGGER_PER = SETTLEMENT_TIMING.RESULT_STAGGER_PER;
+const BALANCE_EXTRA_DELAY = SETTLEMENT_TIMING.BALANCE_EXTRA;
+const BANNER_EXTRA_DELAY = SETTLEMENT_TIMING.BANNER_EXTRA;
+
+// ─── Helper: total delay until all player results have appeared ──────────────
+
+function totalResultsDelay(playerCount: number): number {
+  return RESULT_REVEAL_BASE + Math.max(0, playerCount - 1) * RESULT_STAGGER_PER;
+}
+
+// ─── Display Balance Hook (delays balance update during dealer reveal) ───────
+// Returns the balance that should be visually shown. During SETTLEMENT, it
+// freezes the pre-settlement balance while the dealer reveal plays, then updates
+// after a delay (matching the player-results stagger) once the reveal is done.
+
+export function useDisplayBalance(): number {
+  const realBalance = useGameStore(selectMyBalance);
+  const phase = useGameStore(selectPhase);
+  const isAnimating = useGameStore((s) => s.isAnimating);
+  const players = useGameStore((s) => s._players);
+
+  const [displayed, setDisplayed] = useState(realBalance);
+  const frozenRef = useRef(false);
+  const timerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    // Entering settlement with animation → freeze display
+    if (phase === 'SETTLEMENT' && isAnimating) {
+      frozenRef.current = true;
+      return;
+    }
+
+    // Dealer reveal just finished (still in SETTLEMENT, animation done, still frozen)
+    if (phase === 'SETTLEMENT' && !isAnimating && frozenRef.current) {
+      // Clear any pending timer
+      if (timerRef.current !== null) clearTimeout(timerRef.current);
+
+      // Calculate delay: after all player results have staggered in + extra
+      const playerCount = players.filter((p) => p.hands.length > 0).length;
+      const delay = totalResultsDelay(playerCount) + BALANCE_EXTRA_DELAY;
+
+      timerRef.current = window.setTimeout(() => {
+        frozenRef.current = false;
+        setDisplayed(realBalance);
+        timerRef.current = null;
+      }, delay);
+
+      return;
+    }
+
+    // Phase changed away from SETTLEMENT or never was frozen → sync immediately
+    if (timerRef.current !== null) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+    frozenRef.current = false;
+    setDisplayed(realBalance);
+  }, [realBalance, phase, isAnimating, players]);
+
+  // Cleanup on unmount
+  useEffect(() => () => {
+    if (timerRef.current !== null) clearTimeout(timerRef.current);
+  }, []);
+
+  return frozenRef.current ? displayed : realBalance;
+}
+
+// ─── Settlement-Ready Hook (delays banner/chips until after result cascade) ──
+// Returns true only after the dealer reveal + player result stagger + extra
+// delay have all completed, so the banner and win-chip animation appear last.
+
+export function useSettlementReady(): boolean {
+  const phase = useGameStore(selectPhase);
+  const isAnimating = useGameStore((s) => s.isAnimating);
+  const players = useGameStore((s) => s._players);
+
+  const [ready, setReady] = useState(false);
+  const timerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    // Clear any pending timer
+    if (timerRef.current !== null) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+
+    // Not in settlement or still animating dealer → not ready
+    if (phase !== 'SETTLEMENT' || isAnimating) {
+      setReady(false);
+      return;
+    }
+
+    // Dealer reveal just finished → schedule ready after result cascade
+    const playerCount = players.filter((p) => p.hands.length > 0).length;
+    const delay = totalResultsDelay(playerCount) + BANNER_EXTRA_DELAY;
+
+    timerRef.current = window.setTimeout(() => {
+      setReady(true);
+      timerRef.current = null;
+    }, delay);
+
+    return () => {
+      if (timerRef.current !== null) clearTimeout(timerRef.current);
+    };
+  }, [phase, isAnimating, players]);
+
+  // Reset immediately when leaving settlement
+  useEffect(() => {
+    if (phase !== 'SETTLEMENT') setReady(false);
+  }, [phase]);
+
+  return ready;
+}

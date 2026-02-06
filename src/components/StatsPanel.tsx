@@ -1,17 +1,17 @@
 // ─── Stats Dashboard — Multiplayer (Local Session Stats) ──────────────────────
 
 import { motion, AnimatePresence } from 'framer-motion';
-import { useGameStore, selectMyBalance } from '../hooks/useGameState';
-import { STARTING_BALANCE } from '../engine/rules';
+import { useGameStore, selectMyBalance, selectMyBuyIn } from '../hooks/useGameState';
 
 export default function StatsPanel() {
   const show = useGameStore((s) => s.showStats);
   const toggle = useGameStore((s) => s.toggleStats);
   const stats = useGameStore((s) => s.localStats);
   const balance = useGameStore(selectMyBalance);
+  const myBuyIn = useGameStore(selectMyBuyIn);
 
   const winRate = stats.totalHands > 0 ? ((stats.wins / stats.totalHands) * 100).toFixed(1) : '0.0';
-  const netProfit = balance - STARTING_BALANCE;
+  const netProfit = balance - myBuyIn;
 
   return (
     <AnimatePresence>
@@ -49,6 +49,7 @@ export default function StatsPanel() {
                 <StatCard label="Wins" value={stats.wins.toString()} color="text-casino-green" />
                 <StatCard label="Losses" value={stats.losses.toString()} color="text-casino-red" />
                 <StatCard label="Pushes" value={stats.pushes.toString()} color="text-blue-300" />
+                <StatCard label="Push 22" value={stats.push22s.toString()} color="text-purple-300" />
                 <StatCard label="Blackjacks" value={stats.blackjacks.toString()} color="text-gold" />
                 <StatCard label="Biggest Win" value={`$${stats.biggestWin}`} color="text-gold-light" />
                 <StatCard label="Total Wagered" value={`$${stats.totalWagered.toLocaleString()}`} />

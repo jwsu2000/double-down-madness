@@ -3,6 +3,8 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore, type HandRecord, type PlayerHandEntry, type PlayerHandEntryHand } from '../hooks/useGameState';
 import type { Card } from '../engine/deck';
+import { evaluateHand } from '../engine/deck';
+import { nextDoubleWager } from '../engine/rules';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -160,24 +162,46 @@ export default function HandHistory() {
 
 function SummaryBar({ history }: { history: HandRecord[] }) {
   const totalPayout = history.reduce((sum, h) => sum + h.myPayout, 0);
-  const wins = history.filter(
-    (h) =>
-      h.myResult === 'PLAYER_WIN' ||
-      h.myResult === 'PLAYER_BLACKJACK' ||
-      h.myResult === 'PLAYER_BLACKJACK_SUITED',
-  ).length;
-  const losses = history.filter(
-    (h) => h.myResult === 'DEALER_WIN' || h.myResult === 'DEALER_BLACKJACK',
-  ).length;
-  const pushes = history.length - wins - losses;
+
+  // Count per-hand results for accuracy across multi-hand play
+  let wins = 0;
+  let losses = 0;
+  let pushes = 0;
+  let push22s = 0;
+  let totalHands = 0;
+
+  for (const record of history) {
+    const myEntry = record.players.find((p) => p.isMe);
+    if (!myEntry) continue;
+    for (const hand of myEntry.hands) {
+      totalHands++;
+      if (
+        hand.result === 'PLAYER_WIN' ||
+        hand.result === 'PLAYER_BLACKJACK' ||
+        hand.result === 'PLAYER_BLACKJACK_SUITED'
+      ) {
+        wins++;
+      } else if (hand.result === 'DEALER_WIN' || hand.result === 'DEALER_BLACKJACK') {
+        losses++;
+      } else if (hand.result === 'PUSH_22') {
+        push22s++;
+      } else {
+        pushes++;
+      }
+    }
+  }
 
   return (
     <div className="mb-4">
       <div className="text-cream/25 text-[9px] uppercase tracking-wider mb-1.5">Your Stats</div>
-      <div className="grid grid-cols-4 gap-2">
-        <MiniStat label="Rounds" value={history.length.toString()} />
+      <div className="grid grid-cols-3 gap-2">
+        <MiniStat label="Hands" value={totalHands.toString()} />
         <MiniStat label="Wins" value={wins.toString()} color="text-casino-green" />
         <MiniStat label="Losses" value={losses.toString()} color="text-casino-red" />
+      </div>
+      <div className="grid grid-cols-3 gap-2 mt-2">
+        <MiniStat label="Push" value={pushes.toString()} color="text-blue-300" />
+        <MiniStat label="Push 22" value={push22s.toString()} color="text-purple-300" />
         <MiniStat
           label="Net"
           value={payoutStr(totalPayout)}
@@ -301,29 +325,153 @@ function PlayerRow({ player }: { player: PlayerHandEntry }) {
   );
 }
 
-// ─── Single Hand Row ──────────────────────────────────────────────────────────
+// ─── Action Badge Colors ─────────────────────────────────────────────────────
+
+function actionBadge(type: string): { bg: string; text: string } {
+  switch (type) {
+    case 'DEAL': return { bg: 'bg-cream/10', text: 'text-cream/60' };
+    case 'HIT':  return { bg: 'bg-blue-500/15', text: 'text-blue-300' };
+    case 'DBL':  return { bg: 'bg-gold/15', text: 'text-gold' };
+    case 'STAND':return { bg: 'bg-amber-400/15', text: 'text-amber-300' };
+    case 'BUST': return { bg: 'bg-casino-red/15', text: 'text-casino-red' };
+    case '21':   return { bg: 'bg-casino-green/15', text: 'text-casino-green' };
+    case 'BJ':   return { bg: 'bg-gold/20', text: 'text-gold' };
+    default:     return { bg: 'bg-cream/10', text: 'text-cream/40' };
+  }
+}
+
+// ─── Build Action Steps ──────────────────────────────────────────────────────
+
+interface ActionStep {
+  label: string;        // e.g. "DEAL", "HIT", "DBL"
+  card?: Card;          // the card received
+  total: number;        // running hand total
+  isSoft: boolean;      // whether total is soft
+  isBust: boolean;      // whether this step busted
+  wager?: number;       // wager for doubles
+}
+
+function buildActionSteps(hand: PlayerHandEntryHand): ActionStep[] {
+  const steps: ActionStep[] = [];
+  const { cards, actions, bet } = hand;
+
+  if (cards.length === 0) return steps;
+
+  // Step 0: initial deal
+  const evalDeal = evaluateHand([cards[0]]);
+  steps.push({
+    label: 'DEAL',
+    card: cards[0],
+    total: evalDeal.best,
+    isSoft: evalDeal.isSoft,
+    isBust: false,
+  });
+
+  // Steps 1..n: each subsequent card, action from actions[i-1]
+  let doublesSoFar = 0;
+  for (let i = 1; i < cards.length; i++) {
+    const cardsUpTo = cards.slice(0, i + 1);
+    const evalStep = evaluateHand(cardsUpTo);
+    const actionType = actions[i - 1]; // 'H' or 'D'
+
+    const isDouble = actionType === 'D';
+    let wager: number | undefined;
+    if (isDouble) {
+      wager = nextDoubleWager(bet, doublesSoFar);
+      doublesSoFar++;
+    }
+
+    steps.push({
+      label: isDouble ? 'DBL' : 'HIT',
+      card: cards[i],
+      total: evalStep.best,
+      isSoft: evalStep.isSoft && evalStep.best <= 21,
+      isBust: evalStep.isBust,
+      wager,
+    });
+  }
+
+  // Terminal step
+  const finalEval = evaluateHand(cards);
+  if (finalEval.isBust) {
+    steps.push({ label: 'BUST', total: finalEval.best, isSoft: false, isBust: true });
+  } else if (finalEval.best === 21 && cards.length === 2 && hand.actions.length === 0) {
+    // Natural blackjack (hit to 21 with 2 cards, no doubles)
+    // Already shown in the last card step
+  } else if (
+    !finalEval.isBust &&
+    finalEval.best < 21 &&
+    !(hand.cards.length === 2 && hand.cards[0].rank === 'A' && hand.actions[0] === 'D')
+  ) {
+    // Player stood (wasn't forced by bust/21/lone-ace-double)
+    steps.push({ label: 'STAND', total: finalEval.best, isSoft: finalEval.isSoft && finalEval.best <= 21, isBust: false });
+  }
+
+  return steps;
+}
+
+// ─── Single Hand Row (with action timeline) ─────────────────────────────────
 
 function HandRow({ hand, index, showLabel }: { hand: PlayerHandEntryHand; index: number; showLabel: boolean }) {
+  const steps = buildActionSteps(hand);
+
   return (
-    <div className="mb-1">
+    <div className="mb-2">
       {showLabel && (
         <div className="text-[8px] text-cream/25 uppercase tracking-wider mb-0.5">
           Hand {index + 1}
         </div>
       )}
-      <div className="flex items-center justify-between gap-2">
-        <CardsRow cards={hand.cards} />
-        <span className={`text-[10px] font-bold uppercase tracking-wider shrink-0 ${resultColor(hand.result)}`}>
-          {hand.resultLabel}
-        </span>
+
+      {/* Action timeline */}
+      <div className="flex flex-wrap items-center gap-1 mb-1">
+        {steps.map((step, i) => {
+          const badge = actionBadge(step.label);
+          return (
+            <div key={i} className="flex items-center gap-0.5">
+              {i > 0 && <span className="text-cream/15 text-[8px] mx-0.5">&rarr;</span>}
+              <span className={`inline-flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-bold ${badge.bg} ${badge.text}`}>
+                {step.label}
+                {step.wager != null && (
+                  <span className="text-[8px] font-normal opacity-70">${step.wager}</span>
+                )}
+              </span>
+              {step.card && (
+                <span
+                  className={`inline-flex items-center px-1 py-0.5 rounded text-[10px] font-mono font-bold ${
+                    isRed(step.card) ? 'text-red-400' : 'text-cream'
+                  } bg-navy/80`}
+                >
+                  {cardStr(step.card)}
+                </span>
+              )}
+              {step.card && (
+                <span className={`text-[9px] font-bold ${
+                  step.isBust ? 'text-casino-red' :
+                  step.total === 21 ? 'text-casino-green' :
+                  'text-cream/40'
+                }`}>
+                  {step.isSoft && step.total < 21 ? `${step.total}` : step.total}
+                </span>
+              )}
+            </div>
+          );
+        })}
       </div>
-      <div className="flex items-center justify-between text-[10px] mt-0.5">
-        <span className="text-cream/35">
-          Bet: <span className="text-cream/60">${hand.bet}</span>
-          {hand.totalWager > hand.bet && (
-            <span className="text-cream/30 ml-1">(total: ${hand.totalWager})</span>
-          )}
-        </span>
+
+      {/* Result + payout summary */}
+      <div className="flex items-center justify-between text-[10px]">
+        <div className="flex items-center gap-2">
+          <span className={`font-bold uppercase tracking-wider ${resultColor(hand.result)}`}>
+            {hand.resultLabel}
+          </span>
+          <span className="text-cream/35">
+            Bet: <span className="text-cream/60">${hand.bet}</span>
+            {hand.totalWager > hand.bet && (
+              <span className="text-cream/30 ml-1">(total: ${hand.totalWager})</span>
+            )}
+          </span>
+        </div>
         <span
           className={`font-bold ${
             hand.payout > 0 ? 'text-casino-green' :

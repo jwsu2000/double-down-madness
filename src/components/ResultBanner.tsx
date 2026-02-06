@@ -1,7 +1,7 @@
 // ─── Result Banner Overlay — Multiplayer ──────────────────────────────────────
 
 import { motion, AnimatePresence } from 'framer-motion';
-import { useGameStore, selectPhase } from '../hooks/useGameState';
+import { useGameStore, selectPhase, selectMyBalance, selectMyBuyIn, useSettlementReady } from '../hooks/useGameState';
 import { useSound } from '../hooks/useSound';
 import { useEffect, useRef } from 'react';
 
@@ -12,8 +12,10 @@ export default function ResultBanner() {
   const readyForNext = useGameStore((s) => s.readyForNext);
   const { play } = useSound();
   const soundPlayed = useRef(false);
+  const settlementReady = useSettlementReady();
 
-  const isVisible = phase === 'SETTLEMENT' && tableState?.settlement !== null;
+  // Don't show the banner until dealer reveal + player results cascade completes
+  const isVisible = phase === 'SETTLEMENT' && tableState?.settlement !== null && settlementReady;
   const mySettlement = tableState?.settlement?.find((s) => s.playerId === myPlayerId);
 
   useEffect(() => {
@@ -56,6 +58,11 @@ export default function ResultBanner() {
   // Check if I already clicked ready
   const myPlayer = tableState?.players.find((p) => p.id === myPlayerId);
   const amReady = myPlayer?.isReady ?? false;
+
+  // Overall stack change (current balance vs buy-in)
+  const balance = useGameStore(selectMyBalance);
+  const myBuyIn = useGameStore(selectMyBuyIn);
+  const overallChange = balance - myBuyIn;
 
   return (
     <AnimatePresence>
@@ -128,6 +135,20 @@ export default function ResultBanner() {
                 Side Bet: {mySettlement.sideBetPayout > 0 ? `+$${mySettlement.sideBetPayout}` : `-$${Math.abs(mySettlement.sideBetPayout)}`}
               </div>
             )}
+
+            {/* Overall stack summary */}
+            <div className="w-full mt-2 pt-2 border-t border-white/10 flex items-center justify-between text-[11px]">
+              <span className="text-cream/40">
+                Stack: <span className="text-cream/70 font-bold">${balance.toLocaleString()}</span>
+              </span>
+              <span className={`font-bold ${
+                overallChange > 0 ? 'text-casino-green' :
+                overallChange < 0 ? 'text-casino-red' : 'text-cream/40'
+              }`}>
+                {overallChange > 0 ? '+' : ''}{overallChange !== 0 ? `$${overallChange.toLocaleString()}` : 'Even'}
+                <span className="text-cream/25 font-normal ml-1">overall</span>
+              </span>
+            </div>
 
             {amReady ? (
               <div className="text-cream/40 text-xs mt-2">Waiting for others...</div>

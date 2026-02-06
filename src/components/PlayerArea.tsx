@@ -1,19 +1,82 @@
 // ─── Player Area — All Players at the Table (Multi-Hand) ─────────────────────
 
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import CardHand from './CardHand';
-import { useGameStore } from '../hooks/useGameState';
+import { useGameStore, SETTLEMENT_TIMING } from '../hooks/useGameState';
+import { useDealAnimationContext } from '../hooks/useDealAnimation';
 import { evaluateHand } from '../engine/deck';
 import { totalWager } from '../engine/rules';
+
+// Use shared timing constants
+const RESULT_REVEAL_DELAY = SETTLEMENT_TIMING.RESULT_REVEAL_BASE;
+const RESULT_STAGGER = SETTLEMENT_TIMING.RESULT_STAGGER_PER;
 
 export default function PlayerArea() {
   const tableState = useGameStore((s) => s.tableState);
   const myPlayerId = useGameStore((s) => s.myPlayerId);
+  const isAnimating = useGameStore((s) => s.isAnimating);
+
+  // Deal animation context
+  const { playerCards: animatedPlayerCards, isDealing } = useDealAnimationContext();
+
+  // Track how many player result groups have been revealed
+  const [revealedCount, setRevealedCount] = useState(0);
+  const timeoutsRef = useRef<number[]>([]);
+
+  const phase = tableState?.phase ?? null;
+  const activePlayers = tableState?.players.filter((p) => p.hands.length > 0) ?? [];
+
+  // During the deal animation, use the staged cards from context
+  // After the deal, use the full server cards
+  const displayPlayers = useMemo(() => {
+    if (!isDealing) return activePlayers;
+    return activePlayers.map((p) => {
+      const animHands = animatedPlayerCards.get(p.id);
+      if (!animHands) return p;
+      return {
+        ...p,
+        hands: p.hands.map((h, hi) => ({
+          ...h,
+          cards: animHands[hi] ?? h.cards,
+        })),
+      };
+    });
+  }, [isDealing, activePlayers, animatedPlayerCards]);
+
+  // When dealer reveal finishes (isAnimating goes false during SETTLEMENT),
+  // start staggering player results
+  useEffect(() => {
+    // Clear any old timers
+    timeoutsRef.current.forEach(clearTimeout);
+    timeoutsRef.current = [];
+    setRevealedCount(0);
+
+    if (phase !== 'SETTLEMENT' || isAnimating) return;
+
+    const count = activePlayers.length;
+    for (let i = 0; i < count; i++) {
+      const t = window.setTimeout(() => {
+        setRevealedCount(i + 1);
+      }, RESULT_REVEAL_DELAY + i * RESULT_STAGGER);
+      timeoutsRef.current.push(t);
+    }
+
+    return () => {
+      timeoutsRef.current.forEach(clearTimeout);
+      timeoutsRef.current = [];
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, isAnimating]);
+
+  // Reset on phase changes away from settlement
+  useEffect(() => {
+    if (phase !== 'SETTLEMENT') {
+      setRevealedCount(0);
+    }
+  }, [phase]);
 
   if (!tableState) return null;
-
-  const phase = tableState.phase;
-  const activePlayers = tableState.players.filter((p) => p.hands.length > 0);
 
   if (activePlayers.length === 0) {
     return (
@@ -29,14 +92,22 @@ export default function PlayerArea() {
 
   return (
     <div className="flex items-start justify-center gap-4 sm:gap-6 px-2 flex-wrap">
-      {activePlayers.map((player) => {
+      {displayPlayers.map((player, playerIdx) => {
         const isMe = player.id === myPlayerId;
         const hasMultiHands = player.hands.length > 1;
+        const isButton = player.id === tableState.buttonPlayerId;
+        // This player's results are revealed if their index < revealedCount
+        const showResults = phase === 'SETTLEMENT' && !isAnimating && playerIdx < revealedCount;
 
         return (
           <div key={player.id} className="flex flex-col items-center">
             {/* Player name */}
             <div className="flex items-center gap-1 mb-1">
+              {isButton && (
+                <span className="w-4 h-4 rounded-full bg-gold text-charcoal text-[8px] font-black flex items-center justify-center shrink-0"
+                  title="Dealer Button"
+                >D</span>
+              )}
               <span
                 className={`text-[10px] uppercase tracking-wider font-bold
                   ${isMe ? 'text-cream/60' : 'text-cream/30'}
@@ -79,7 +150,7 @@ export default function PlayerArea() {
                   <div
                     key={handIdx}
                     className={`flex flex-col items-center transition-all duration-300
-                      ${isActiveHand ? 'scale-105' : isDone && !isWinner && phase === 'SETTLEMENT' ? 'opacity-70' : ''}
+                      ${isActiveHand ? 'scale-105' : isDone && !isWinner && showResults ? 'opacity-70' : ''}
                     `}
                   >
                     {/* Hand number label for multi-hand */}
@@ -109,19 +180,21 @@ export default function PlayerArea() {
                     >
                       <CardHand
                         cards={hand.cards}
-                        isWinner={!!isWinner && phase === 'SETTLEMENT'}
+                        isWinner={!!isWinner && showResults}
                         isBust={isBust}
                         showScore={hand.cards.length > 0}
                         baseDelay={0}
+                        hideEmpty={isDealing}
                       />
                     </div>
 
                     {/* Per-hand result badge */}
                     <AnimatePresence>
-                      {phase === 'SETTLEMENT' && handResult && (
+                      {showResults && handResult && (
                         <motion.div
-                          initial={{ opacity: 0, y: -5 }}
-                          animate={{ opacity: 1, y: 0 }}
+                          initial={{ opacity: 0, y: -5, scale: 0.8 }}
+                          animate={{ opacity: 1, y: 0, scale: 1 }}
+                          transition={{ duration: 0.3, delay: handIdx * 0.1 }}
                           className={`text-xs font-bold mt-1 px-2 py-0.5 rounded-full
                             ${isWinner ? 'bg-casino-green/20 text-casino-green' :
                               isBust || handResult.result === 'DEALER_WIN' || handResult.result === 'DEALER_BLACKJACK'
@@ -142,7 +215,7 @@ export default function PlayerArea() {
 
                     {/* Wager display */}
                     <AnimatePresence>
-                      {hand.originalBet > 0 && phase !== 'BETTING' && (
+                      {hand.originalBet > 0 && phase !== 'BETTING' && !isDealing && (
                         <motion.div
                           className="flex items-center gap-1 mt-1"
                           initial={{ opacity: 0 }}

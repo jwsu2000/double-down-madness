@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useGameStore, selectPhase } from '../hooks/useGameState';
+import { useGameStore, selectPhase, selectChipDenominations, useSettlementReady } from '../hooks/useGameState';
 import CasinoChip from './CasinoChip';
 import type { ChipValue } from '../engine/rules';
 
@@ -14,16 +14,17 @@ interface FlyingChip {
   size: number;
 }
 
-const CHIP_VALUES: ChipValue[] = [1, 5, 25, 100, 500];
-
 export default function WinChipsAnimation() {
   const phase = useGameStore(selectPhase);
   const tableState = useGameStore((s) => s.tableState);
   const myPlayerId = useGameStore((s) => s.myPlayerId);
+  const chipDenominations = useGameStore(selectChipDenominations);
+  const settlementReady = useSettlementReady();
   const [chips, setChips] = useState<FlyingChip[]>([]);
 
   const mySettlement = tableState?.settlement?.find((s) => s.playerId === myPlayerId);
-  const isWin = phase === 'SETTLEMENT' && mySettlement && mySettlement.payout > 0;
+  // Wait for dealer reveal + player results cascade before triggering chip animation
+  const isWin = phase === 'SETTLEMENT' && settlementReady && mySettlement && mySettlement.payout > 0;
 
   useEffect(() => {
     if (isWin && mySettlement) {
@@ -33,7 +34,7 @@ export default function WinChipsAnimation() {
         id: i,
         x: (Math.random() - 0.5) * 280,
         delay: Math.random() * 0.35,
-        value: CHIP_VALUES[Math.floor(Math.random() * CHIP_VALUES.length)],
+        value: chipDenominations[Math.floor(Math.random() * chipDenominations.length)],
         size: 28 + Math.random() * 16,
       }));
       setChips(newChips);

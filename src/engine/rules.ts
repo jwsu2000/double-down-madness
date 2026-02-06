@@ -31,8 +31,8 @@ export interface SettlementResult {
 
 // ─── Chip Denominations ───────────────────────────────────────────────────────
 
-export const CHIP_DENOMINATIONS = [1, 5, 25, 100, 500] as const;
-export type ChipValue = (typeof CHIP_DENOMINATIONS)[number];
+export const DEFAULT_CHIP_DENOMINATIONS = [1, 5, 25, 100, 500];
+export type ChipValue = number;
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 

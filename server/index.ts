@@ -56,9 +56,9 @@ io.on('connection', (socket) => {
 
   // ─── Create Room ──────────────────────────────────────────────────
 
-  socket.on('create_room', async ({ playerName }) => {
+  socket.on('create_room', async ({ playerName, buyIn }) => {
     try {
-      const { roomCode, playerId } = roomManager.createRoom(socket.id, playerName);
+      const { roomCode, playerId } = roomManager.createRoom(socket.id, playerName, buyIn);
       socket.join(roomCode);
       socket.emit('room_created', { roomCode, playerId });
       broadcastState(roomCode);
@@ -71,8 +71,8 @@ io.on('connection', (socket) => {
 
   // ─── Join Room ────────────────────────────────────────────────────
 
-  socket.on('join_room', ({ roomCode, playerName }) => {
-    const result = roomManager.joinRoom(socket.id, roomCode, playerName);
+  socket.on('join_room', ({ roomCode, playerName, buyIn }) => {
+    const result = roomManager.joinRoom(socket.id, roomCode, playerName, buyIn);
     if (result.error) {
       socket.emit('error', { message: result.error });
       return;
@@ -106,13 +106,30 @@ io.on('connection', (socket) => {
       return;
     }
 
-    const ok = await ctx.room.table.startRound();
+    const table = ctx.room.table;
+
+    // If starting from LOBBY (first round), roll for dealer button
+    const isFirstStart = table.phase === 'LOBBY';
+    if (isFirstStart && !table.buttonPlayerId) {
+      const diceResult = table.rollForDealer();
+      if (diceResult) {
+        // Emit the dice roll event to all clients in the room
+        io.to(ctx.roomCode).emit('dice_roll', diceResult);
+      }
+    }
+
+    const ok = await table.startRound();
     if (!ok) {
       socket.emit('error', { message: 'Cannot start round now' });
       return;
     }
 
-    broadcastState(ctx.roomCode);
+    // If dice roll happened, delay the state broadcast so clients can animate
+    if (isFirstStart) {
+      setTimeout(() => broadcastState(ctx.roomCode), 4500);
+    } else {
+      broadcastState(ctx.roomCode);
+    }
   });
 
   // ─── Place Bet ────────────────────────────────────────────────────
@@ -234,6 +251,22 @@ io.on('connection', (socket) => {
 
     // Broadcast to all sockets in the room
     io.to(ctx.roomCode).emit('chat_message', msg);
+  });
+
+  // ─── Set Chip Denominations (Host Only) ──────────────────────────
+
+  socket.on('set_chip_denoms', ({ denominations }) => {
+    const ctx = roomManager.getContextForSocket(socket.id);
+    if (!ctx) return;
+
+    const ok = ctx.room.table.setChipDenominations(ctx.playerId, denominations);
+    if (!ok) {
+      socket.emit('error', { message: 'Cannot change chip denominations' });
+      return;
+    }
+
+    broadcastState(ctx.roomCode);
+    console.log(`[chips:set] ${ctx.roomCode} denoms → [${ctx.room.table.chipDenominations}]`);
   });
 
   // ─── Ready for Next Round ─────────────────────────────────────────

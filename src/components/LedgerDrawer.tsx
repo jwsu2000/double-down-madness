@@ -2,7 +2,6 @@
 
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore, type DepartedPlayer } from '../hooks/useGameState';
-import { STARTING_BALANCE } from '../engine/rules';
 
 export default function LedgerDrawer() {
   const show = useGameStore((s) => s.showLedger);
@@ -12,10 +11,10 @@ export default function LedgerDrawer() {
   const departedPlayers = useGameStore((s) => s.departedPlayers);
 
   const activePlayers = tableState?.players ?? [];
-  const allCount = activePlayers.length + departedPlayers.length;
 
   // Compute totals across all players (active + departed)
-  const totalBuyIn = allCount * STARTING_BALANCE;
+  const totalBuyIn = activePlayers.reduce((sum, p) => sum + p.buyIn, 0)
+    + departedPlayers.reduce((sum, p) => sum + p.buyIn, 0);
   const activeStack = activePlayers.reduce((sum, p) => sum + p.balance, 0);
   const departedStack = departedPlayers.reduce((sum, p) => sum + p.lastBalance, 0);
   const totalStack = activeStack + departedStack;
@@ -76,7 +75,7 @@ export default function LedgerDrawer() {
               {/* Active Player Rows */}
               <div className="divide-y divide-charcoal-lighter/50">
                 {activePlayers.map((player) => {
-                  const pl = player.balance - STARTING_BALANCE;
+                  const pl = player.balance - player.buyIn;
                   const isMe = player.id === myPlayerId;
 
                   return (
@@ -110,7 +109,7 @@ export default function LedgerDrawer() {
 
                       {/* Buy-in */}
                       <div className="text-right text-cream/50 text-sm font-mono">
-                        ${STARTING_BALANCE.toLocaleString()}
+                        ${player.buyIn.toLocaleString()}
                       </div>
 
                       {/* Current Stack */}
@@ -142,7 +141,7 @@ export default function LedgerDrawer() {
               )}
 
               {/* Totals Row */}
-              {allCount > 1 && (
+              {(activePlayers.length + departedPlayers.length) > 1 && (
                 <div className="grid grid-cols-[1fr_80px_90px_90px] gap-2 px-3 py-3 items-center border-t-2 border-gold/20 mt-1">
                   <div className="text-cream/50 text-xs font-bold uppercase tracking-wider">
                     Table Total
@@ -160,7 +159,6 @@ export default function LedgerDrawer() {
               {/* Note */}
               <div className="mt-4 pt-3 border-t border-charcoal-lighter">
                 <p className="text-cream/25 text-[10px] text-center">
-                  All players start with a ${STARTING_BALANCE.toLocaleString()} buy-in.
                   P/L is calculated as current stack minus buy-in.
                   {departedPlayers.length > 0 && ' Departed players show their final balance.'}
                 </p>
@@ -176,7 +174,7 @@ export default function LedgerDrawer() {
 // ─── Departed Player Row ──────────────────────────────────────────────────────
 
 function DepartedRow({ player }: { player: DepartedPlayer }) {
-  const pl = player.lastBalance - STARTING_BALANCE;
+  const pl = player.lastBalance - player.buyIn;
   const timeStr = new Date(player.departedAt).toLocaleTimeString([], {
     hour: '2-digit',
     minute: '2-digit',
@@ -197,7 +195,7 @@ function DepartedRow({ player }: { player: DepartedPlayer }) {
 
       {/* Buy-in */}
       <div className="text-right text-cream/30 text-sm font-mono">
-        ${STARTING_BALANCE.toLocaleString()}
+        ${player.buyIn.toLocaleString()}
       </div>
 
       {/* Final Stack */}

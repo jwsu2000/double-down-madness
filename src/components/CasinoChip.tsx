@@ -25,58 +25,63 @@ interface ChipColorScheme {
   highlight: string;    // top highlight
 }
 
-const CHIP_SCHEMES: Record<ChipValue, ChipColorScheme> = {
-  1: {
-    face: '#e8e4e0',
-    faceEnd: '#cdc8c2',
-    edge: '#e8e4e0',
-    edgeAlt: '#4a90d9',
-    ring: '#b8b3ac',
-    text: '#3a3632',
-    shadow: '#8a8580',
-    highlight: '#ffffff',
-  },
-  5: {
-    face: '#cc2233',
-    faceEnd: '#991122',
-    edge: '#cc2233',
-    edgeAlt: '#ffffff',
-    ring: '#ff4455',
-    text: '#ffffff',
-    shadow: '#661118',
-    highlight: '#ff6677',
-  },
-  25: {
-    face: '#1a8a4a',
-    faceEnd: '#0e6633',
-    edge: '#1a8a4a',
-    edgeAlt: '#ffffff',
-    ring: '#2bb866',
-    text: '#ffffff',
-    shadow: '#0a4422',
-    highlight: '#3dcc77',
-  },
-  100: {
-    face: '#1a1a1e',
-    faceEnd: '#0d0d10',
-    edge: '#1a1a1e',
-    edgeAlt: '#d4a843',
-    ring: '#3a3a42',
-    text: '#d4a843',
-    shadow: '#000000',
-    highlight: '#4a4a55',
-  },
-  500: {
-    face: '#6b2fa0',
-    faceEnd: '#4a1f70',
-    edge: '#6b2fa0',
-    edgeAlt: '#ffffff',
-    ring: '#9b55d0',
-    text: '#ffffff',
-    shadow: '#2d1345',
-    highlight: '#b87ae0',
-  },
-};
+// Known chip color schemes (classic casino colors)
+const KNOWN_SCHEMES: [number, ChipColorScheme][] = [
+  [1, {
+    face: '#e8e4e0', faceEnd: '#cdc8c2', edge: '#e8e4e0', edgeAlt: '#4a90d9',
+    ring: '#b8b3ac', text: '#3a3632', shadow: '#8a8580', highlight: '#ffffff',
+  }],
+  [5, {
+    face: '#cc2233', faceEnd: '#991122', edge: '#cc2233', edgeAlt: '#ffffff',
+    ring: '#ff4455', text: '#ffffff', shadow: '#661118', highlight: '#ff6677',
+  }],
+  [10, {
+    face: '#1e6bb8', faceEnd: '#134a80', edge: '#1e6bb8', edgeAlt: '#ffffff',
+    ring: '#4a90d9', text: '#ffffff', shadow: '#0c2d4f', highlight: '#6ab0f0',
+  }],
+  [25, {
+    face: '#1a8a4a', faceEnd: '#0e6633', edge: '#1a8a4a', edgeAlt: '#ffffff',
+    ring: '#2bb866', text: '#ffffff', shadow: '#0a4422', highlight: '#3dcc77',
+  }],
+  [50, {
+    face: '#e67e22', faceEnd: '#b35c18', edge: '#e67e22', edgeAlt: '#ffffff',
+    ring: '#f5a623', text: '#ffffff', shadow: '#7a4210', highlight: '#ffc870',
+  }],
+  [100, {
+    face: '#1a1a1e', faceEnd: '#0d0d10', edge: '#1a1a1e', edgeAlt: '#d4a843',
+    ring: '#3a3a42', text: '#d4a843', shadow: '#000000', highlight: '#4a4a55',
+  }],
+  [250, {
+    face: '#d4548a', faceEnd: '#a33068', edge: '#d4548a', edgeAlt: '#ffffff',
+    ring: '#e880aa', text: '#ffffff', shadow: '#6b1a40', highlight: '#f0a0c0',
+  }],
+  [500, {
+    face: '#6b2fa0', faceEnd: '#4a1f70', edge: '#6b2fa0', edgeAlt: '#ffffff',
+    ring: '#9b55d0', text: '#ffffff', shadow: '#2d1345', highlight: '#b87ae0',
+  }],
+  [1000, {
+    face: '#b8860b', faceEnd: '#8b6508', edge: '#b8860b', edgeAlt: '#ffffff',
+    ring: '#daa520', text: '#ffffff', shadow: '#5c4305', highlight: '#f0d060',
+  }],
+  [5000, {
+    face: '#8b0000', faceEnd: '#5c0000', edge: '#8b0000', edgeAlt: '#d4a843',
+    ring: '#cc3333', text: '#d4a843', shadow: '#3a0000', highlight: '#ee5555',
+  }],
+];
+
+// Fallback scheme cycle for unknown denominations
+const FALLBACK_CYCLE: ChipColorScheme[] = [
+  { face: '#3a6b8c', faceEnd: '#264a60', edge: '#3a6b8c', edgeAlt: '#ffffff', ring: '#5a9bc0', text: '#ffffff', shadow: '#1a3040', highlight: '#7abce0' },
+  { face: '#8c5a3a', faceEnd: '#604026', edge: '#8c5a3a', edgeAlt: '#ffffff', ring: '#c08a5a', text: '#ffffff', shadow: '#40201a', highlight: '#e0b07a' },
+];
+
+function getChipScheme(value: number): ChipColorScheme {
+  // Exact match first
+  const exact = KNOWN_SCHEMES.find(([v]) => v === value);
+  if (exact) return exact[1];
+  // Fallback based on hash
+  return FALLBACK_CYCLE[value % FALLBACK_CYCLE.length];
+}
 
 // ─── Number of edge notches ───────────────────────────────────────────────────
 
@@ -90,7 +95,7 @@ export default function CasinoChip({
   onClick,
   className = '',
 }: CasinoChipProps) {
-  const scheme = CHIP_SCHEMES[value];
+  const scheme = getChipScheme(value);
   const r = size / 2;
   const notchWidth = 6;
   const notchDepth = size * 0.08;
@@ -117,6 +122,9 @@ export default function CasinoChip({
   const innerR1 = r * 0.82;
   const innerR2 = r * 0.76;
   const innerR3 = r * 0.42;
+
+  // Format the chip label
+  const label = value >= 1000 ? `$${value / 1000}k` : `$${value}`;
 
   return (
     <div
@@ -191,12 +199,12 @@ export default function CasinoChip({
           textAnchor="middle"
           dominantBaseline="central"
           fill={scheme.text}
-          fontSize={size * (value >= 100 ? 0.22 : 0.26)}
+          fontSize={size * (label.length > 4 ? 0.18 : label.length > 3 ? 0.22 : 0.26)}
           fontWeight="bold"
           fontFamily="Georgia, serif"
           style={{ textShadow: `0 1px 1px ${scheme.shadow}44` }}
         >
-          ${value}
+          {label}
         </text>
 
         {/* Top-left highlight arc for 3D illusion */}
@@ -217,7 +225,7 @@ export default function CasinoChip({
 // Renders a chip as a thin disc seen from slight perspective
 
 export function ChipDisc({ value, width = 40 }: { value: ChipValue; width?: number }) {
-  const scheme = CHIP_SCHEMES[value];
+  const scheme = getChipScheme(value);
   const height = 6;
 
   return (

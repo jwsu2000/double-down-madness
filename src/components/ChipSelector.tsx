@@ -1,8 +1,8 @@
 // ─── Chip Denomination Picker — Multiplayer ───────────────────────────────────
 
 import { motion } from 'framer-motion';
-import { CHIP_DENOMINATIONS, type ChipValue } from '../engine/rules';
-import { useGameStore, selectMyPlayer, selectPhase } from '../hooks/useGameState';
+import type { ChipValue } from '../engine/rules';
+import { useGameStore, selectMyPlayer, selectPhase, selectChipDenominations } from '../hooks/useGameState';
 import { useSound } from '../hooks/useSound';
 import CasinoChip from './CasinoChip';
 
@@ -13,6 +13,7 @@ export default function ChipSelector() {
   const numHands = useGameStore((s) => s.numHandsInput);
   const sideBetInput = useGameStore((s) => s.sideBetInput);
   const phase = useGameStore(selectPhase);
+  const chipDenominations = useGameStore(selectChipDenominations);
   const { play } = useSound();
 
   const balance = myPlayer?.balance ?? 0;
@@ -20,7 +21,7 @@ export default function ChipSelector() {
 
   return (
     <div className="flex gap-3 sm:gap-4 justify-center items-end flex-wrap">
-      {CHIP_DENOMINATIONS.map((value) => {
+      {chipDenominations.map((value) => {
         // Check if adding this chip would exceed balance when accounting for all hands
         const newPerHand = betInput + value;
         const canAfford = newPerHand * numHands + sideBetInput <= balance;

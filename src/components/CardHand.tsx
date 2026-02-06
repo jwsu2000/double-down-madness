@@ -11,6 +11,7 @@ interface CardHandProps {
   showScore?: boolean;
   label?: string;
   baseDelay?: number;
+  hideEmpty?: boolean;
 }
 
 export default function CardHand({
@@ -20,6 +21,7 @@ export default function CardHand({
   showScore = true,
   label,
   baseDelay = 0,
+  hideEmpty = false,
 }: CardHandProps) {
   const visibleCards = cards.filter((c) => c.faceUp);
   const hand = evaluateHand(visibleCards);
@@ -50,10 +52,13 @@ export default function CardHand({
             delay={baseDelay + i * 0.15}
           />
         ))}
-        {cards.length === 0 && (
+        {cards.length === 0 && !hideEmpty && (
           <div className="w-[90px] h-[130px] rounded-lg border-2 border-dashed border-cream/10 flex items-center justify-center">
             <span className="text-cream/20 text-xs">No cards</span>
           </div>
+        )}
+        {cards.length === 0 && hideEmpty && (
+          <div className="w-[90px] h-[130px]" />
         )}
       </div>
       {showScore && cards.length > 0 && visibleCards.length > 0 && (

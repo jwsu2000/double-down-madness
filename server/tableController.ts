@@ -22,6 +22,7 @@ import {
   settleHand,
   STARTING_BALANCE,
   SIDE_BET_PAYOUT,
+  DEFAULT_CHIP_DENOMINATIONS,
 } from '../src/engine/rules';
 import {
   type ProvablyFairState,
@@ -37,6 +38,7 @@ import type {
   HandSettlement,
   TablePhase,
   ProvablyFairInfo,
+  DiceRollResult,
 } from '../src/shared/protocol';
 
 // ─── Server-side Hand ─────────────────────────────────────────────────────────
@@ -48,6 +50,8 @@ export interface ServerHand {
   justDoubledOnLoneAce: boolean;
   result: HandResult | null;
   message: string;
+  /** Action log: one entry per card after the initial deal. 'H' = Hit, 'D' = Double */
+  actions: ('H' | 'D')[];
 }
 
 // ─── Server-side Player ───────────────────────────────────────────────────────
@@ -57,6 +61,7 @@ export interface ServerPlayer {
   name: string;
   socketId: string;
   balance: number;
+  buyIn: number;
   hands: ServerHand[];
   currentBet: number;       // per-hand bet amount
   sideBet: number;
@@ -77,6 +82,9 @@ export class TableController {
   players = new Map<string, ServerPlayer>();
   playerOrder: string[] = [];
   hostId = '';
+
+  /** The player currently holding the "dealer button" (selected by dice roll) */
+  buttonPlayerId: string | null = null;
 
   // Shoe
   private shoe: Card[] = [];
@@ -107,10 +115,30 @@ export class TableController {
   // Ready tracking
   private readyPlayers = new Set<string>();
 
+  // Chip denominations (configurable by host)
+  chipDenominations: number[] = [...DEFAULT_CHIP_DENOMINATIONS];
+
   private initialized = false;
 
   constructor(roomCode: string) {
     this.roomCode = roomCode;
+  }
+
+  // ─── Chip Denomination Setting (host only) ──────────────────────────
+
+  setChipDenominations(playerId: string, denominations: number[]): boolean {
+    if (playerId !== this.hostId) return false;
+    if (this.phase !== 'LOBBY' && this.phase !== 'BETTING') return false;
+    // Validate: at least 1, at most 8, all positive integers, sorted ascending
+    const filtered = denominations
+      .filter((d) => Number.isInteger(d) && d > 0)
+      .sort((a, b) => a - b);
+    if (filtered.length < 1 || filtered.length > 8) return false;
+    // Remove duplicates
+    const unique = [...new Set(filtered)];
+    if (unique.length < 1) return false;
+    this.chipDenominations = unique;
+    return true;
   }
 
   // ─── Initialization ──────────────────────────────────────────────────
@@ -143,12 +171,14 @@ export class TableController {
 
   // ─── Player Management ───────────────────────────────────────────────
 
-  addPlayer(id: string, name: string, socketId: string) {
+  addPlayer(id: string, name: string, socketId: string, buyIn?: number) {
+    const amount = buyIn && buyIn > 0 ? buyIn : STARTING_BALANCE;
     const player: ServerPlayer = {
       id,
       name,
       socketId,
-      balance: STARTING_BALANCE,
+      balance: amount,
+      buyIn: amount,
       hands: [],
       currentBet: 0,
       sideBet: 0,
@@ -236,6 +266,34 @@ export class TableController {
     return true;
   }
 
+  // ─── Dealer Button Selection (Dice Roll) ────────────────────────────
+
+  rollForDealer(): DiceRollResult | null {
+    const connected = this.getConnectedPlayers();
+    if (connected.length === 0) return null;
+
+    const die1 = Math.floor(Math.random() * 6) + 1;
+    const die2 = Math.floor(Math.random() * 6) + 1;
+    const total = die1 + die2;
+
+    const playerIds = connected.map((p) => p.id);
+    const playerNames = connected.map((p) => p.name);
+    const selectedIndex = (total - 1) % connected.length; // map 2-12 to player indices
+    const selectedId = playerIds[selectedIndex];
+    const selectedName = playerNames[selectedIndex];
+
+    this.buttonPlayerId = selectedId;
+
+    return {
+      dice: [die1, die2],
+      total,
+      playerIds,
+      playerNames,
+      selectedPlayerId: selectedId,
+      selectedPlayerName: selectedName,
+    };
+  }
+
   // ─── Game Flow ───────────────────────────────────────────────────────
 
   async startRound(): Promise<boolean> {
@@ -293,6 +351,7 @@ export class TableController {
         justDoubledOnLoneAce: false,
         result: null,
         message: '',
+        actions: [],
       });
     }
 
@@ -410,6 +469,7 @@ export class TableController {
         if (!actions.hit) return false;
         const card = this.drawCard(true);
         hand.cards.push(card);
+        hand.actions.push('H');
         const handEval = evaluateHand(hand.cards);
         if (handEval.isBust || handEval.best === 21) {
           this.advanceToNextHand();
@@ -429,6 +489,7 @@ export class TableController {
         player.balance -= wager;
         const card = this.drawCard(true);
         hand.cards.push(card);
+        hand.actions.push('D');
         hand.doubleCount++;
 
         const wasLoneAce = hand.cards.length === 2 && hand.cards[0].rank === 'A';
@@ -687,16 +748,18 @@ export class TableController {
     this.provablyFair = await rotateServerSeed(this.provablyFair);
     this.roundNumber++;
 
-    if (this.needsReshuffle || this.shoePosition >= TOTAL_CARDS - 30) {
-      this.shoeOrder = await deriveShoeOrder(
-        this.provablyFair.serverSeed,
-        this.provablyFair.clientSeed,
-        this.provablyFair.nonce,
-      );
-      this.shoe = this.shoeOrder.map((i) => this.indexToCard(i));
-      this.shoePosition = 0;
-      this.needsReshuffle = false;
-    }
+    // Always reshuffle the shoe every round so each round is independently
+    // verifiable: the shoe is derived from this round's own seed parameters,
+    // meaning cards dealt at positions 0..N map exactly to deriveShoeOrder()
+    // output, which is what the client checks during verification.
+    this.shoeOrder = await deriveShoeOrder(
+      this.provablyFair.serverSeed,
+      this.provablyFair.clientSeed,
+      this.provablyFair.nonce,
+    );
+    this.shoe = this.shoeOrder.map((i) => this.indexToCard(i));
+    this.shoePosition = 0;
+    this.needsReshuffle = false;
 
     // Reset for next round
     for (const player of this.players.values()) {
@@ -752,12 +815,14 @@ export class TableController {
         justDoubledOnLoneAce: h.justDoubledOnLoneAce,
         result: h.result,
         message: h.message,
+        actions: [...h.actions],
       }));
 
       return {
         id: p.id,
         name: p.name,
         balance: p.balance,
+        buyIn: p.buyIn,
         hands,
         currentBet: p.currentBet,
         sideBet: p.sideBet,
@@ -796,11 +861,13 @@ export class TableController {
       activeHandIndex: this.activeHandIndex,
       myPlayerId: forPlayerId,
       hostId: this.hostId,
+      buttonPlayerId: this.buttonPlayerId,
       settlement: this.phase === 'SETTLEMENT' ? this.settlements : null,
       roundNumber: this.roundNumber,
       serverSeedHash: this.provablyFair?.serverSeedHash || '',
       previousServerSeed: this.provablyFair?.previousServerSeed,
       provablyFair,
+      chipDenominations: [...this.chipDenominations],
     };
   }
 }

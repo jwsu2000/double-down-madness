@@ -1,10 +1,10 @@
 // ─── Header: Room Info, Balance, Settings ─────────────────────────────────────
 
 import { motion, AnimatePresence } from 'framer-motion';
-import { useGameStore, selectMyBalance, selectMyIsAway } from '../hooks/useGameState';
+import { useGameStore, selectMyIsAway, useDisplayBalance } from '../hooks/useGameState';
 
 export default function Header() {
-  const balance = useGameStore(selectMyBalance);
+  const balance = useDisplayBalance();
   const soundEnabled = useGameStore((s) => s.soundEnabled);
   const toggleSound = useGameStore((s) => s.toggleSound);
   const toggleStats = useGameStore((s) => s.toggleStats);
