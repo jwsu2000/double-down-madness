@@ -1,73 +1,61 @@
-# React + TypeScript + Vite
+# Double Down Madness
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Multiplayer blackjack with Socket.IO realtime state sync.
 
-Currently, two official plugins are available:
+## Local Development
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+Requirements:
+- Node.js 20+
+- npm
 
-## React Compiler
+Run:
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm ci
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+App:
+- Frontend: `http://localhost:5173`
+- Backend: `http://localhost:3001`
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## Deploy: Vercel Frontend + Railway Backend
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+This repo is configured for split hosting:
+- Frontend static build on Vercel
+- Node + Socket.IO server on Railway
+
+### 1) Deploy backend to Railway
+
+1. Create a Railway service from this repo.
+2. Railway uses `railway.json`:
+   - Build: `npm ci && npm run build`
+   - Start: `npx tsx server/index.ts`
+3. Set Railway environment variable:
+   - `CLIENT_ORIGIN=https://your-vercel-app.vercel.app`
+   - You can provide multiple origins as CSV.
+
+### 2) Deploy frontend to Vercel
+
+1. Import the same repo into Vercel.
+2. Keep framework as Vite defaults.
+3. Set Vercel environment variable:
+   - `VITE_SOCKET_URL=https://your-railway-service.up.railway.app`
+4. Redeploy.
+
+### 3) Verify
+
+Open your Vercel URL and check:
+- Status changes from "Connecting..." to connected.
+- You can create a room and share room code.
+
+## Environment Variables
+
+See `.env.example` for all deployment variables.
+
+Client:
+- `VITE_SOCKET_URL`: Socket.IO backend base URL. If unset, client uses same-origin.
+
+Server:
+- `CLIENT_ORIGIN`: allowed frontend origin(s) for Socket.IO CORS. Comma-separated.
+

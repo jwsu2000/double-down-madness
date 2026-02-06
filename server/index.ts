@@ -17,11 +17,33 @@ import {
 const app = express();
 const httpServer = createServer(app);
 
+function parseAllowedOrigins(envValue: string | undefined): string[] {
+  if (!envValue) return [];
+  return envValue
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter((origin) => origin.length > 0);
+}
+
+const configuredClientOrigins = parseAllowedOrigins(process.env.CLIENT_ORIGIN);
+const defaultDevOrigins = ['http://localhost:5173', 'http://127.0.0.1:5173'];
+const socketCorsOrigin =
+  configuredClientOrigins.length > 0
+    ? configuredClientOrigins
+    : process.env.NODE_ENV === 'production'
+      ? true
+      : defaultDevOrigins;
+
+if (process.env.NODE_ENV === 'production' && configuredClientOrigins.length === 0) {
+  console.warn('[cors] CLIENT_ORIGIN not set; allowing all origins for Socket.IO');
+}
+
 // ─── Socket.IO ────────────────────────────────────────────────────────────────
 
 const io = new Server<ClientToServerEvents, ServerToClientEvents>(httpServer, {
   cors: {
-    origin: process.env.NODE_ENV === 'production' ? false : ['http://localhost:5173'],
+    origin: socketCorsOrigin,
+    methods: ['GET', 'POST'],
   },
 });
 
