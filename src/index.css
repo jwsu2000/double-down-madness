@@ -1,0 +1,62 @@
+@import "tailwindcss";
+
+@theme {
+  --color-felt: #0a5c36;
+  --color-felt-dark: #064225;
+  --color-felt-light: #0e7a48;
+  --color-charcoal: #1a1d23;
+  --color-charcoal-light: #252830;
+  --color-charcoal-lighter: #2f323b;
+  --color-gold: #d4a843;
+  --color-gold-light: #e8c468;
+  --color-gold-dark: #b8922e;
+  --color-cream: #f5f0e1;
+  --color-cream-dark: #d9d0bc;
+  --color-casino-red: #c41e3a;
+  --color-casino-green: #2ecc71;
+  --color-navy: #141824;
+  --color-navy-light: #1e2230;
+  --font-family-display: 'Georgia', 'Times New Roman', serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  min-height: 100vh;
+  font-family: system-ui, -apple-system, sans-serif;
+  background-color: var(--color-navy);
+  color: var(--color-cream);
+  overflow-x: hidden;
+}
+
+/* Card suit colors */
+.suit-red { color: #c41e3a; }
+.suit-black { color: #1a1d23; }
+
+/* Felt texture overlay */
+.felt-bg {
+  background-color: var(--color-felt);
+  background-image:
+    radial-gradient(ellipse at 50% 0%, rgba(255,255,255,0.05) 0%, transparent 60%),
+    url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23000000' fill-opacity='0.06'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+}
+
+/* Golden glow for winning */
+@keyframes golden-glow {
+  0%, 100% { box-shadow: 0 0 10px rgba(212, 168, 67, 0.3); }
+  50% { box-shadow: 0 0 25px rgba(212, 168, 67, 0.7), 0 0 50px rgba(212, 168, 67, 0.3); }
+}
+.glow-gold { animation: golden-glow 1.5s ease-in-out infinite; }
+
+/* Red tint for bust */
+.bust-tint { filter: brightness(0.7) saturate(1.5) hue-rotate(-10deg); opacity: 0.8; }
+
+/* Scrollbar styling */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--color-charcoal); }
+::-webkit-scrollbar-thumb { background: var(--color-charcoal-lighter); border-radius: 3px; }
