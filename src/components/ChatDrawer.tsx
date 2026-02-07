@@ -44,8 +44,8 @@ function ChatPanel({ className = '', onClose, autoFocusInput = false }: ChatPane
   };
 
   return (
-    <div className={`bg-charcoal border border-charcoal-lighter flex flex-col shadow-2xl ${className}`}>
-      <div className="flex items-center justify-between px-5 py-4 border-b border-charcoal-lighter">
+    <div className={`bg-charcoal/95 border border-gold/20 flex flex-col shadow-[0_16px_36px_rgba(0,0,0,0.35)] ${className}`}>
+      <div className="flex items-center justify-between px-5 py-4 border-b border-gold/15 bg-gradient-to-r from-charcoal-light/80 to-charcoal/60">
         <div className="flex items-center gap-2">
           <svg className="w-5 h-5 text-gold" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
@@ -116,7 +116,7 @@ function ChatPanel({ className = '', onClose, autoFocusInput = false }: ChatPane
         <div ref={messagesEndRef} />
       </div>
 
-      <div className="border-t border-charcoal-lighter p-3">
+      <div className="border-t border-gold/15 p-3">
         <div className="flex items-center gap-2 bg-navy/50 rounded-xl border border-charcoal-lighter focus-within:border-gold/30 transition-colors">
           <input
             ref={inputRef}
@@ -153,9 +153,9 @@ export default function ChatDrawer() {
 
   return (
     <>
-      {/* Always-visible compact desktop chat */}
-      <div className="hidden lg:flex fixed right-4 bottom-4 w-[300px] h-[320px] xl:w-[320px] xl:h-[350px] z-30">
-        <ChatPanel className="h-full w-full rounded-2xl overflow-hidden bg-charcoal/95 backdrop-blur-sm" />
+      {/* Always-visible desktop chat rail (separate from table area) */}
+      <div className="hidden lg:flex fixed right-3 top-[calc(var(--safe-top)+72px)] bottom-3 w-[300px] xl:w-[320px] z-30">
+        <ChatPanel className="h-full w-full rounded-2xl overflow-hidden backdrop-blur-md" />
       </div>
 
       {/* Mobile drawer */}

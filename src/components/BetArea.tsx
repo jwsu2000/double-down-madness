@@ -76,7 +76,7 @@ export default function BetArea() {
 
       <div className="flex flex-col items-center gap-3 flex-1 w-full max-w-3xl">
         {canUseEmotes && (
-          <div className="w-full rounded-xl border border-gold/20 bg-charcoal-light/60 px-3 py-2">
+          <div className="w-full rounded-xl border border-gold/25 bg-charcoal-light/72 shadow-[0_12px_24px_rgba(0,0,0,0.26)] px-3 py-2">
             <div className="text-[10px] uppercase tracking-[0.18em] text-gold/60 font-semibold text-center mb-1.5">
               Table Emotes
             </div>
@@ -314,10 +314,10 @@ export default function BetArea() {
                 onClick={() => { placeBet(); play('deal'); }}
                 disabled={!canDeal}
                 className={`w-full sm:w-auto max-w-[260px] px-7 py-2.5 rounded-lg font-bold text-sm uppercase tracking-wider
-                  transition-all duration-200 shadow-lg
+                  transition-all duration-200 border shadow-[0_12px_24px_rgba(0,0,0,0.3)]
                   ${canDeal
-                    ? 'bg-gradient-to-b from-gold to-gold-dark text-charcoal hover:from-gold-light hover:to-gold cursor-pointer'
-                    : 'bg-charcoal-lighter text-cream/30 cursor-not-allowed'
+                    ? 'bg-gradient-to-b from-gold to-gold-dark border-gold-light/45 text-charcoal hover:from-gold-light hover:to-gold cursor-pointer'
+                    : 'bg-charcoal-lighter border-cream/10 text-cream/30 cursor-not-allowed'
                   }`}
                 whileHover={canDeal ? { scale: 1.05 } : {}}
                 whileTap={canDeal ? { scale: 0.95 } : {}}
@@ -353,9 +353,9 @@ function EmoteButton({ label, onClick }: { label: string; onClick: () => void })
   return (
     <motion.button
       onClick={onClick}
-      className="px-3 py-1.5 rounded-lg font-bold text-xs uppercase tracking-wide
+      className="px-3 py-1.5 rounded-lg font-bold text-xs uppercase tracking-wide border border-gold-light/35
         bg-gradient-to-b from-gold to-gold-dark text-charcoal hover:from-gold-light hover:to-gold
-        transition-all duration-200 shadow-lg cursor-pointer"
+        transition-all duration-200 shadow-[0_8px_18px_rgba(0,0,0,0.25)] cursor-pointer"
       whileHover={{ scale: 1.05 }}
       whileTap={{ scale: 0.95 }}
     >
@@ -380,9 +380,9 @@ function BetButton({ onClick, disabled, variant, children }: {
     <motion.button
       onClick={onClick}
       disabled={disabled}
-      className={`px-4 py-2 rounded-lg font-bold text-sm uppercase tracking-wider transition-all duration-200
+      className={`px-4 py-2 rounded-lg font-bold text-sm uppercase tracking-wider transition-all duration-200 border
         ${disabled
-          ? 'bg-charcoal-lighter text-cream/30 cursor-not-allowed opacity-50'
+          ? 'bg-charcoal-lighter border-cream/10 text-cream/30 cursor-not-allowed opacity-50'
           : `cursor-pointer ${variantStyles[variant]}`
         }`}
       whileHover={!disabled ? { scale: 1.05 } : {}}

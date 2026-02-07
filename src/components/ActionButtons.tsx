@@ -185,10 +185,10 @@ interface ActionButtonProps {
 
 function ActionButton({ label, onClick, disabled, color = 'default' }: ActionButtonProps) {
   const colorClasses = {
-    green: 'from-casino-green to-emerald-700 text-white hover:from-emerald-400 hover:to-emerald-600',
-    red: 'from-casino-red to-red-800 text-white hover:from-red-500 hover:to-red-700',
-    gold: 'from-gold to-gold-dark text-charcoal hover:from-gold-light hover:to-gold',
-    default: 'from-charcoal-lighter to-charcoal-light text-cream hover:from-charcoal-light hover:to-charcoal-lighter',
+    green: 'from-casino-green to-emerald-700 text-white hover:from-emerald-400 hover:to-emerald-600 border-emerald-300/45',
+    red: 'from-casino-red to-red-800 text-white hover:from-red-500 hover:to-red-700 border-red-300/45',
+    gold: 'from-gold to-gold-dark text-charcoal hover:from-gold-light hover:to-gold border-gold-light/45',
+    default: 'from-charcoal-lighter to-charcoal-light text-cream hover:from-charcoal-light hover:to-charcoal-lighter border-cream/20',
   };
 
   return (
@@ -197,8 +197,8 @@ function ActionButton({ label, onClick, disabled, color = 'default' }: ActionBut
       disabled={disabled}
       className={`
         px-3.5 py-2.5 sm:px-6 sm:py-3 rounded-lg font-bold text-[11px] sm:text-sm uppercase tracking-wider
-        bg-gradient-to-b shadow-lg transition-all duration-150
-        ${disabled ? 'opacity-30 cursor-not-allowed from-charcoal-lighter to-charcoal text-cream/40' : `cursor-pointer ${colorClasses[color]}`}
+        bg-gradient-to-b border shadow-[0_10px_22px_rgba(0,0,0,0.26)] transition-all duration-150
+        ${disabled ? 'opacity-30 cursor-not-allowed from-charcoal-lighter to-charcoal text-cream/40 border-cream/10' : `cursor-pointer ${colorClasses[color]}`}
       `}
       whileHover={!disabled ? { scale: 1.05, y: -2 } : {}}
       whileTap={!disabled ? { scale: 0.95 } : {}}

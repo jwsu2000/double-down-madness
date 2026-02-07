@@ -22,7 +22,7 @@ export default function Card({ card, index, isWinner, isBust, delay = 0 }: CardP
         ${isWinner ? 'glow-gold' : ''} ${isBust ? 'bust-tint' : ''}
       `}
       style={{
-        perspective: '600px',
+        perspective: '760px',
         marginLeft: index > 0 ? '-16px' : '0',
         zIndex: index,
       }}
@@ -44,7 +44,7 @@ export default function Card({ card, index, isWinner, isBust, delay = 0 }: CardP
       >
         {/* Front face */}
         <div
-          className="absolute inset-0 rounded-lg bg-white shadow-lg border border-gray-200 p-1.5 flex flex-col justify-between"
+          className="absolute inset-0 rounded-lg bg-gradient-to-br from-white via-[#fff8ee] to-[#eadfc8] shadow-[0_14px_26px_rgba(0,0,0,0.34)] border border-[#d8ccb5] p-1.5 flex flex-col justify-between"
           style={{ backfaceVisibility: 'hidden' }}
         >
           <div className={`text-sm sm:text-base font-bold leading-none ${isRed ? 'text-casino-red' : 'text-gray-900'}`}>
@@ -62,11 +62,12 @@ export default function Card({ card, index, isWinner, isBust, delay = 0 }: CardP
 
         {/* Back face */}
         <div
-          className="absolute inset-0 rounded-lg shadow-lg overflow-hidden"
+          className="absolute inset-0 rounded-lg shadow-[0_14px_26px_rgba(0,0,0,0.34)] overflow-hidden border border-gold/20"
           style={{
             backfaceVisibility: 'hidden',
             transform: 'rotateY(180deg)',
-            background: 'linear-gradient(135deg, #1a3a5c 25%, #2a5a8c 50%, #1a3a5c 75%)',
+            background:
+              'radial-gradient(circle at 50% 18%, rgba(255,255,255,0.08), rgba(255,255,255,0) 36%), linear-gradient(135deg, #142f4a 20%, #244f78 50%, #132c45 80%)',
           }}
         >
           <div className="w-full h-full flex items-center justify-center">

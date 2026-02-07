@@ -87,7 +87,7 @@ export default function App() {
   // In the room lobby — show player list + start button
   if (tableState.phase === 'LOBBY') {
     return (
-      <div className="min-h-dvh">
+      <div className="app-shell min-h-dvh bg-navy lg:pr-[336px] xl:pr-[356px]">
         <RoomLobby />
         <RulesDrawer />
         <ProvablyFairDrawer />
@@ -101,10 +101,10 @@ export default function App() {
   // Game in progress
   return (
     <DealAnimationProvider value={dealAnimation}>
-    <div className="min-h-dvh flex flex-col bg-navy">
+    <div className="app-shell min-h-dvh flex flex-col bg-navy lg:pr-[336px] xl:pr-[356px]">
       <Header />
 
-      <main className="flex-1 felt-bg relative flex flex-col">
+      <main className="table-stage flex-1 felt-bg relative flex flex-col overflow-hidden">
         {/* Dealer Section */}
         <div className="flex-1 flex items-end justify-center pb-2 min-h-[110px] sm:min-h-[190px]">
           <DealerArea />
@@ -128,18 +128,18 @@ export default function App() {
       </main>
 
       {/* Action Buttons */}
-      <div className="bg-charcoal/80 backdrop-blur-sm border-t border-charcoal-lighter">
+      <div className="panel-elevated">
         <ActionButtons />
       </div>
 
       {/* Bet Area */}
-      <div className="bg-charcoal border-t border-charcoal-lighter pb-[var(--safe-bottom)]">
+      <div className="panel-elevated panel-elevated-strong pb-[var(--safe-bottom)]">
         <BetArea />
       </div>
 
       {/* Keyboard hints */}
       {phase === 'BETTING' && (
-        <div className="hidden sm:block bg-charcoal text-center py-1">
+        <div className="hidden sm:block bg-charcoal/95 text-center py-1 border-t border-gold/15">
           <span className="text-cream/20 text-[10px]">
             Press SPACE to place bet &bull; H = Hit &bull; S = Stand &bull; D = Double
           </span>

@@ -27,7 +27,7 @@ function getOutcomeTheme(kind: OutcomeKind) {
   switch (kind) {
     case 'blackjack':
       return {
-        panelBg: 'from-amber-200/15 via-amber-500/10 to-amber-700/20',
+        panelBg: 'from-amber-200/40 via-amber-500/30 to-amber-700/48',
         panelBorder: 'border-amber-200/90',
         heading: 'text-amber-100',
         payout: 'text-amber-100',
@@ -39,7 +39,7 @@ function getOutcomeTheme(kind: OutcomeKind) {
       };
     case 'win':
       return {
-        panelBg: 'from-cyan-200/15 via-cyan-500/10 to-blue-600/20',
+        panelBg: 'from-cyan-200/40 via-cyan-500/28 to-blue-600/46',
         panelBorder: 'border-cyan-200/90',
         heading: 'text-cyan-100',
         payout: 'text-cyan-100',
@@ -51,7 +51,7 @@ function getOutcomeTheme(kind: OutcomeKind) {
       };
     case 'loss':
       return {
-        panelBg: 'from-orange-200/15 via-orange-500/10 to-rose-700/20',
+        panelBg: 'from-orange-200/40 via-orange-500/28 to-rose-700/48',
         panelBorder: 'border-orange-200/90',
         heading: 'text-orange-100',
         payout: 'text-orange-100',
@@ -63,7 +63,7 @@ function getOutcomeTheme(kind: OutcomeKind) {
       };
     case 'push':
       return {
-        panelBg: 'from-slate-200/15 via-blue-200/10 to-slate-500/20',
+        panelBg: 'from-slate-200/36 via-blue-200/24 to-slate-500/44',
         panelBorder: 'border-slate-200/90',
         heading: 'text-slate-100',
         payout: 'text-slate-100',
@@ -205,10 +205,16 @@ export default function ResultBanner() {
         exit={{ opacity: 0 }}
       >
         <motion.div
+          className="absolute inset-0 bg-navy/78 backdrop-blur-[3px]"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: [0, 1, 1] }}
+          transition={{ duration: 0.3, ease: 'easeOut' }}
+        />
+        <motion.div
           className="absolute inset-0"
           style={{ background: getOutcomeBackdrop(outcomeKind) }}
           initial={{ opacity: 0 }}
-          animate={{ opacity: [0, 1, 0.7] }}
+          animate={{ opacity: [0, 0.95, 0.85] }}
           transition={{ duration: 0.55, ease: 'easeOut' }}
         />
         {particles.map((particle, idx) => (
@@ -236,11 +242,12 @@ export default function ResultBanner() {
           aria-live="polite"
           className={`
             relative overflow-hidden
+            bg-charcoal/88
             bg-gradient-to-b ${theme.panelBg}
-            backdrop-blur-md border ${theme.panelBorder}
+            backdrop-blur-xl border ${theme.panelBorder} ring-1 ring-black/40
             rounded-2xl px-8 py-6 sm:px-12 sm:py-8
             flex flex-col items-center gap-3
-            shadow-2xl cursor-pointer max-w-[440px] w-[92%] pointer-events-auto
+            shadow-[0_22px_80px_rgba(0,0,0,0.55)] cursor-pointer max-w-[440px] w-[92%] pointer-events-auto
           `}
           initial={{ scale: 0.45, y: 40, opacity: 0 }}
           animate={{ ...panelAnimate, opacity: 1 }}

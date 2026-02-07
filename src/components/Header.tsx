@@ -26,16 +26,16 @@ export default function Header() {
 
   return (
     <header
-      className="bg-charcoal/90 backdrop-blur-sm border-b border-charcoal-lighter px-3 sm:px-4 pb-2 sm:pb-3"
+      className="top-command-bar relative border-b border-gold/20 px-3 sm:px-4 pb-2 sm:pb-3"
       style={{ paddingTop: 'calc(0.5rem + var(--safe-top))' }}
     >
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex items-start gap-3 min-h-[44px]">
         <div className="flex items-start gap-2.5 min-w-0">
           <div className="text-gold font-bold text-base sm:text-xl font-[Georgia] tracking-tight shrink-0">
             DDM
           </div>
           <div className="min-w-0">
-            <div className="inline-flex items-center gap-2 bg-charcoal-lighter/60 rounded-lg px-2.5 py-1">
+            <div className="inline-flex items-center gap-2 bg-charcoal-lighter/65 border border-gold/20 rounded-lg px-2.5 py-1 shadow-[0_8px_20px_rgba(0,0,0,0.22)]">
               <span className="text-cream/40 text-[10px] uppercase">Room</span>
               <span className="text-gold font-mono font-bold text-xs sm:text-sm tracking-wider">{roomCode}</span>
             </div>
@@ -50,27 +50,27 @@ export default function Header() {
             </div>
           </div>
         </div>
+      </div>
 
-        <div className="flex flex-col items-end shrink-0">
-          <span className="text-cream/40 text-[10px] uppercase tracking-wider">
-            {isSpectator ? 'Mode' : 'Balance'}
-          </span>
-          {isSpectator ? (
-            <span className="text-cream/70 font-semibold text-sm sm:text-base">Spectating</span>
-          ) : (
-            <AnimatePresence mode="wait">
-              <motion.span
-                key={balance}
-                initial={{ y: -10, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                exit={{ y: 10, opacity: 0 }}
-                className="text-gold font-bold text-base sm:text-xl"
-              >
-                ${balance.toLocaleString()}
-              </motion.span>
-            </AnimatePresence>
-          )}
-        </div>
+      <div className="absolute left-1/2 -translate-x-1/2 top-2 sm:top-2 z-10 pointer-events-none text-center">
+        <span className="block text-cream/40 text-[10px] uppercase tracking-wider">
+          {isSpectator ? 'Mode' : 'Balance'}
+        </span>
+        {isSpectator ? (
+          <span className="text-cream/70 font-semibold text-sm sm:text-base">Spectating</span>
+        ) : (
+          <AnimatePresence mode="wait">
+            <motion.span
+              key={balance}
+              initial={{ y: -10, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 10, opacity: 0 }}
+              className="text-gold font-bold text-base sm:text-xl drop-shadow-[0_0_10px_rgba(212,168,67,0.35)]"
+            >
+              ${balance.toLocaleString()}
+            </motion.span>
+          </AnimatePresence>
+        )}
       </div>
 
       <AnimatePresence>
@@ -86,8 +86,8 @@ export default function Header() {
         )}
       </AnimatePresence>
 
-      <div className="mt-2 overflow-x-auto pb-1 no-scrollbar">
-        <div className="flex items-center gap-1.5 min-w-max pr-1">
+      <div className="mt-2 overflow-x-auto pb-1 no-scrollbar md:mt-0 md:pb-0 md:absolute md:top-2 md:right-3 md:max-w-[56vw]">
+        <div className="command-tray flex items-center gap-1.5 min-w-max pr-1">
           <HeaderBtn onClick={toggleHistory} title="Hand History">
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -151,8 +151,8 @@ export default function Header() {
               title={isAway ? 'Back to Table' : 'Go Away'}
               className={`px-2.5 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all duration-150 whitespace-nowrap
                 ${isAway
-                  ? 'bg-gold/20 text-gold border border-gold/30 hover:bg-gold/30'
-                  : 'text-cream/60 hover:text-gold hover:bg-charcoal-lighter border border-transparent'
+                  ? 'bg-gold/22 text-gold border border-gold/35 hover:bg-gold/30'
+                  : 'header-btn-premium text-cream/60 hover:text-gold'
                 }`}
             >
               {isAway ? 'Back' : 'Away'}
@@ -179,7 +179,7 @@ function HeaderBtn({ onClick, title, children }: {
     <button
       onClick={onClick}
       title={title}
-      className="p-2 rounded-lg text-cream/60 hover:text-gold hover:bg-charcoal-lighter transition-all duration-150 shrink-0"
+      className="header-btn-premium p-2 rounded-lg text-cream/60 hover:text-gold transition-all duration-150 shrink-0"
     >
       {children}
     </button>
