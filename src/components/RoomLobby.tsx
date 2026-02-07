@@ -19,12 +19,14 @@ export default function RoomLobby() {
   const unreadChatCount = useGameStore((s) => s.unreadChatCount);
   const chipDenominations = useGameStore(selectChipDenominations);
   const setChipDenoms = useGameStore((s) => s.setChipDenoms);
+  const setLobbyDealer = useGameStore((s) => s.setLobbyDealer);
 
   const [showChipSettings, setShowChipSettings] = useState(false);
 
   if (!tableState) return null;
 
   const isHost = myPlayerId === tableState.hostId;
+  const canChooseDealer = isHost && tableState.phase === 'LOBBY';
   const players = tableState.players.filter((p) => p.connected);
 
   // Build the set of active denominations (from server state)
@@ -77,20 +79,24 @@ export default function RoomLobby() {
         <div className="p-6">
           <h3 className="text-cream/50 text-xs uppercase tracking-wider mb-3">At the Table</h3>
           <div className="space-y-2">
-            {tableState.players.map((player) => (
-              <motion.div
-                key={player.id}
-                className={`flex items-center justify-between px-4 py-3 rounded-lg
-                  ${player.id === myPlayerId
-                    ? 'bg-gold/10 border border-gold/30'
-                    : 'bg-charcoal-light border border-charcoal-lighter'
-                  }
-                  ${!player.connected ? 'opacity-40' : ''}
-                `}
-                initial={{ x: -20, opacity: 0 }}
-                animate={{ x: 0, opacity: player.connected ? 1 : 0.4 }}
-              >
-                <div className="flex items-center gap-3">
+            {tableState.players.map((player) => {
+              const isDealer = player.id === tableState.buttonPlayerId;
+              const canSetDealer = canChooseDealer && player.connected && !isDealer;
+
+              return (
+                <motion.div
+                  key={player.id}
+                  className={`flex items-center justify-between px-4 py-3 rounded-lg
+                    ${player.id === myPlayerId
+                      ? 'bg-gold/10 border border-gold/30'
+                      : 'bg-charcoal-light border border-charcoal-lighter'
+                    }
+                    ${!player.connected ? 'opacity-40' : ''}
+                  `}
+                  initial={{ x: -20, opacity: 0 }}
+                  animate={{ x: 0, opacity: player.connected ? 1 : 0.4 }}
+                >
+                  <div className="flex items-center gap-3">
                   {/* Avatar Circle */}
                   <div
                     className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold
@@ -106,7 +112,7 @@ export default function RoomLobby() {
                     {player.id === tableState.hostId && (
                       <span className="text-gold/60 text-[10px] ml-2 uppercase">Host</span>
                     )}
-                    {player.id === tableState.buttonPlayerId && (
+                    {isDealer && (
                       <span className="inline-flex items-center gap-0.5 ml-2">
                         <span className="w-3.5 h-3.5 rounded-full bg-gold text-charcoal text-[7px] font-black flex items-center justify-center">D</span>
                         <span className="text-gold/60 text-[10px] uppercase">Dealer</span>
@@ -116,19 +122,34 @@ export default function RoomLobby() {
                       <span className="text-cream/30 text-[10px] ml-2">(You)</span>
                     )}
                   </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-cream/30 text-xs font-mono">${player.buyIn.toLocaleString()}</span>
-                  <div className={`text-xs ${
-                    !player.connected ? 'text-cream/30' :
-                    player.isAway ? 'text-amber-400' :
-                    'text-casino-green'
-                  }`}>
-                    {!player.connected ? 'Disconnected' : player.isAway ? 'Away' : 'Ready'}
                   </div>
-                </div>
-              </motion.div>
-            ))}
+                  <div className="flex items-center gap-2">
+                    <span className="text-cream/30 text-xs font-mono">${player.buyIn.toLocaleString()}</span>
+                    <div className={`text-xs ${
+                      !player.connected ? 'text-cream/30' :
+                      player.isAway ? 'text-amber-400' :
+                      'text-casino-green'
+                    }`}>
+                      {!player.connected ? 'Disconnected' : player.isAway ? 'Away' : 'Ready'}
+                    </div>
+                    {canChooseDealer && (
+                      <button
+                        onClick={() => setLobbyDealer(player.id)}
+                        disabled={!canSetDealer}
+                        className={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider transition-colors ${
+                          canSetDealer
+                            ? 'bg-gold/20 text-gold hover:bg-gold/30'
+                            : 'bg-charcoal-lighter text-cream/20 cursor-not-allowed'
+                        }`}
+                        title={canSetDealer ? `Set ${player.name} as dealer` : 'Already dealer'}
+                      >
+                        Set Dealer
+                      </button>
+                    )}
+                  </div>
+                </motion.div>
+              );
+            })}
 
             {/* Empty Seats */}
             {Array.from({ length: 5 - tableState.players.length }).map((_, i) => (
@@ -282,7 +303,7 @@ export default function RoomLobby() {
 
             <motion.button
               onClick={toggleChat}
-              className="relative py-3 px-4 rounded-lg text-sm uppercase tracking-wider
+              className="relative py-3 px-4 rounded-lg text-sm uppercase tracking-wider lg:hidden
                 bg-charcoal-lighter text-cream/60 hover:text-cream hover:bg-charcoal-light cursor-pointer transition-colors"
               whileTap={{ scale: 0.98 }}
             >

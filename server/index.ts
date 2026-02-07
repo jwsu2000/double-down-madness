@@ -6,6 +6,7 @@ import { Server } from 'socket.io';
 import path from 'path';
 import { existsSync } from 'fs';
 import { RoomManager } from './roomManager';
+import { MAX_BUY_IN } from '../src/engine/rules';
 import {
   DEALER_EMOTE_OPTIONS,
   type ClientToServerEvents,
@@ -50,6 +51,10 @@ const io = new Server<ClientToServerEvents, ServerToClientEvents>(httpServer, {
 const roomManager = new RoomManager();
 const DEALER_EMOTE_KINDS = new Set(DEALER_EMOTE_OPTIONS.map((option) => option.kind));
 
+function isValidBuyIn(value: number): boolean {
+  return Number.isInteger(value) && value >= 1 && value <= MAX_BUY_IN;
+}
+
 // ─── Serve Static Files in Production ─────────────────────────────────────────
 
 const distPath = path.join(process.cwd(), 'dist');
@@ -81,6 +86,11 @@ io.on('connection', (socket) => {
   // ─── Create Room ──────────────────────────────────────────────────
 
   socket.on('create_room', async ({ playerName, buyIn }) => {
+    if (!isValidBuyIn(buyIn)) {
+      socket.emit('error', { message: `Buy-in must be between $1 and $${MAX_BUY_IN.toLocaleString()}` });
+      return;
+    }
+
     try {
       const { roomCode, playerId } = roomManager.createRoom(socket.id, playerName, buyIn);
       socket.join(roomCode);
@@ -96,6 +106,11 @@ io.on('connection', (socket) => {
   // ─── Join Room ────────────────────────────────────────────────────
 
   socket.on('join_room', ({ roomCode, playerName, buyIn }) => {
+    if (!isValidBuyIn(buyIn)) {
+      socket.emit('error', { message: `Buy-in must be between $1 and $${MAX_BUY_IN.toLocaleString()}` });
+      return;
+    }
+
     const result = roomManager.joinRoom(socket.id, roomCode, playerName, buyIn);
     if (result.error) {
       socket.emit('error', { message: result.error });
@@ -132,10 +147,12 @@ io.on('connection', (socket) => {
 
     const table = ctx.room.table;
 
-    // If starting from LOBBY (first round), roll for dealer button
+    // If starting from LOBBY (first round), roll for dealer button only when
+    // host has not pre-selected one.
     const isFirstStart = table.phase === 'LOBBY';
+    let diceResult = null;
     if (isFirstStart && !table.buttonPlayerId) {
-      const diceResult = table.rollForDealer();
+      diceResult = table.rollForDealer();
       if (diceResult) {
         // Emit the dice roll event to all clients in the room
         io.to(ctx.roomCode).emit('dice_roll', diceResult);
@@ -148,8 +165,9 @@ io.on('connection', (socket) => {
       return;
     }
 
-    // If dice roll happened, delay the state broadcast so clients can animate
-    if (isFirstStart) {
+    // If dice roll happened, delay the state broadcast so clients can animate.
+    // If dealer was pre-selected, start immediately.
+    if (isFirstStart && diceResult) {
       setTimeout(() => broadcastState(ctx.roomCode), 4500);
     } else {
       broadcastState(ctx.roomCode);
@@ -313,6 +331,32 @@ io.on('connection', (socket) => {
   });
 
   // ─── Set Chip Denominations (Host Only) ──────────────────────────
+
+  socket.on('transfer_host', ({ playerId }) => {
+    const ctx = roomManager.getContextForSocket(socket.id);
+    if (!ctx) return;
+
+    const ok = ctx.room.table.transferHost(ctx.playerId, playerId);
+    if (!ok) {
+      socket.emit('error', { message: 'Cannot transfer host right now' });
+      return;
+    }
+
+    broadcastState(ctx.roomCode);
+  });
+
+  socket.on('set_lobby_dealer', ({ playerId }) => {
+    const ctx = roomManager.getContextForSocket(socket.id);
+    if (!ctx) return;
+
+    const ok = ctx.room.table.setLobbyDealer(ctx.playerId, playerId);
+    if (!ok) {
+      socket.emit('error', { message: 'Cannot set dealer right now' });
+      return;
+    }
+
+    broadcastState(ctx.roomCode);
+  });
 
   socket.on('set_chip_denoms', ({ denominations }) => {
     const ctx = roomManager.getContextForSocket(socket.id);

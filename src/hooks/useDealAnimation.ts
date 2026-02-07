@@ -54,7 +54,6 @@ export function useDealAnimation(): DealAnimationState {
   const tableState = useGameStore((s) => s.tableState);
   const phase = useGameStore(selectPhase);
   const serverDealerCards = useGameStore(selectDealerCards);
-  const setAnimating = useGameStore((s) => s.setAnimating);
 
   const [displayPlayerCards, setDisplayPlayerCards] = useState<Map<string, Card[][]>>(new Map());
   const [displayDealerCards, setDisplayDealerCards] = useState<Card[]>([]);

@@ -1,4 +1,5 @@
 // ─── Dealer Area — Multiplayer (with Deal Animation + Sweat Reveal) ───────────
+/* eslint-disable react-hooks/set-state-in-effect */
 
 import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
@@ -30,6 +31,7 @@ export default function DealerArea() {
   const { dealerCards: animatedDealerCards, isDealing } = useDealAnimationContext();
 
   const [displayCards, setDisplayCards] = useState<CardType[]>([]);
+  const [isRevealing, setIsRevealing] = useState(false);
   const prevServerRef = useRef<CardType[]>([]);
   const timeoutsRef = useRef<number[]>([]);
   const isRevealingRef = useRef(false);
@@ -65,6 +67,7 @@ export default function DealerArea() {
       setDisplayCards([]);
       if (isRevealingRef.current) {
         isRevealingRef.current = false;
+        setIsRevealing(false);
         setAnimating(false);
       }
       return;
@@ -75,6 +78,7 @@ export default function DealerArea() {
       setDisplayCards(serverCards);
       if (isRevealingRef.current) {
         isRevealingRef.current = false;
+        setIsRevealing(false);
         setAnimating(false);
       }
       return;
@@ -103,6 +107,7 @@ export default function DealerArea() {
     // ─── SWEAT REVEAL ──────────────────────────────────────────────────
 
     isRevealingRef.current = true;
+    setIsRevealing(true);
     setAnimating(true);
 
     // Start by holding the current display state
@@ -141,11 +146,11 @@ export default function DealerArea() {
     const finalT = window.setTimeout(() => {
       setDisplayCards(serverCards);
       isRevealingRef.current = false;
+      setIsRevealing(false);
       setAnimating(false);
     }, delay);
     timeoutsRef.current.push(finalT);
 
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [serverCards, setAnimating, isDealing]);
 
   // ─── Render ─────────────────────────────────────────────────────────────────
@@ -158,7 +163,7 @@ export default function DealerArea() {
 
   const isWinner =
     phase === 'SETTLEMENT' &&
-    !isRevealingRef.current &&
+    !isRevealing &&
     tableState?.settlement !== null &&
     tableState?.settlement !== undefined &&
     tableState.settlement.every(

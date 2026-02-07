@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '../hooks/useGameState';
-import { STARTING_BALANCE } from '../engine/rules';
+import { STARTING_BALANCE, MAX_BUY_IN } from '../engine/rules';
 
 export default function Lobby() {
   const connected = useGameStore((s) => s.connected);
@@ -101,10 +101,11 @@ export default function Lobby() {
                 value={buyIn || ''}
                 onChange={(e) => {
                   const val = parseInt(e.target.value, 10);
-                  setBuyIn(isNaN(val) ? 0 : Math.max(0, val));
+                  setBuyIn(isNaN(val) ? 0 : Math.max(0, Math.min(MAX_BUY_IN, val)));
                 }}
                 placeholder="1000"
                 min={1}
+                max={MAX_BUY_IN}
                 className="w-full bg-navy/80 text-cream text-sm pl-8 pr-4 py-3 rounded-lg border border-charcoal-lighter
                   focus:border-gold/50 focus:outline-none transition-colors placeholder-cream/20
                   [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
@@ -112,6 +113,11 @@ export default function Lobby() {
             </div>
             {buyIn > 0 && buyIn < 10 && (
               <p className="text-gold/50 text-[10px] mt-1">Minimum recommended: $10</p>
+            )}
+            {buyIn >= MAX_BUY_IN && (
+              <p className="text-gold/50 text-[10px] mt-1">
+                Maximum buy-in: ${MAX_BUY_IN.toLocaleString()}
+              </p>
             )}
           </div>
 

@@ -6,7 +6,6 @@ import {
   evaluateHand,
   SUITS,
   RANKS,
-  TOTAL_CARDS,
   CUT_CARD_POSITION,
 } from '../src/engine/deck';
 import {
@@ -21,6 +20,7 @@ import {
   getAvailableActions,
   settleHand,
   STARTING_BALANCE,
+  MAX_BUY_IN,
   SIDE_BET_PAYOUT,
   DEFAULT_CHIP_DENOMINATIONS,
 } from '../src/engine/rules';
@@ -156,6 +156,28 @@ export class TableController {
     return true;
   }
 
+  transferHost(currentHostPlayerId: string, nextHostPlayerId: string): boolean {
+    if (currentHostPlayerId !== this.hostId) return false;
+    if (nextHostPlayerId === this.hostId) return false;
+
+    const nextHost = this.players.get(nextHostPlayerId);
+    if (!nextHost || !nextHost.connected) return false;
+
+    this.hostId = nextHostPlayerId;
+    return true;
+  }
+
+  setLobbyDealer(hostPlayerId: string, dealerPlayerId: string): boolean {
+    if (hostPlayerId !== this.hostId) return false;
+    if (this.phase !== 'LOBBY') return false;
+
+    const dealer = this.players.get(dealerPlayerId);
+    if (!dealer || !dealer.connected) return false;
+
+    this.buttonPlayerId = dealerPlayerId;
+    return true;
+  }
+
   // ─── Initialization ──────────────────────────────────────────────────
 
   private async init() {
@@ -187,7 +209,8 @@ export class TableController {
   // ─── Player Management ───────────────────────────────────────────────
 
   addPlayer(id: string, name: string, socketId: string, buyIn?: number) {
-    const amount = buyIn && buyIn > 0 ? buyIn : STARTING_BALANCE;
+    const requested = typeof buyIn === 'number' && Number.isInteger(buyIn) ? buyIn : STARTING_BALANCE;
+    const amount = requested > 0 ? Math.min(requested, MAX_BUY_IN) : STARTING_BALANCE;
     const player: ServerPlayer = {
       id,
       name,

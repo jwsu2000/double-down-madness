@@ -28,6 +28,7 @@ export default function BetArea() {
 
   const isBetting = phase === 'BETTING';
   const isDealer = myPlayer.id === tableState.buttonPlayerId;
+  const canDealerEmote = isDealer && (phase === 'BETTING' || phase === 'INSURANCE_OFFERED' || phase === 'PLAYER_TURN');
   const hasBet = myPlayer.hasBet;
   const balance = myPlayer.balance;
   const totalCost = betInput * numHandsInput + sideBetInput;
@@ -41,8 +42,8 @@ export default function BetArea() {
   // Max hands the player can afford
   const maxHands = betInput > 0 ? Math.min(5, Math.floor((balance - sideBetInput) / betInput)) : 1;
 
-  // Not in betting phase — show minimal or nothing
-  if (!isBetting) return null;
+  // Keep dealer emote controls available while players are making decisions.
+  if (!isBetting && !canDealerEmote) return null;
 
   return (
     <div className="flex items-start gap-4 sm:gap-6 p-4 justify-center">
@@ -54,7 +55,7 @@ export default function BetArea() {
       {/* Main Controls */}
       <div className="flex flex-col items-center gap-3 flex-1 max-w-lg">
         {/* Away state */}
-        {isDealer ? (
+        {canDealerEmote ? (
           <div className="flex flex-col items-center gap-3 py-4">
             <div className="text-gold text-lg font-bold">You are the house dealer</div>
             <p className="text-cream/45 text-sm text-center max-w-xs">

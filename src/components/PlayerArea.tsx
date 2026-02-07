@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import CardHand from './CardHand';
 import { useGameStore, SETTLEMENT_TIMING } from '../hooks/useGameState';
 import { useDealAnimationContext } from '../hooks/useDealAnimation';
-import { evaluateHand } from '../engine/deck';
+import { evaluateHand, isBlackjack, isSuitedBlackjack } from '../engine/deck';
 import { totalWager } from '../engine/rules';
 
 // Use shared timing constants
@@ -25,7 +25,10 @@ export default function PlayerArea() {
   const timeoutsRef = useRef<number[]>([]);
 
   const phase = tableState?.phase ?? null;
-  const activePlayers = tableState?.players.filter((p) => p.hands.length > 0) ?? [];
+  const activePlayers = useMemo(
+    () => tableState?.players.filter((p) => p.hands.length > 0) ?? [],
+    [tableState],
+  );
 
   // During the deal animation, use the staged cards from context
   // After the deal, use the full server cards
@@ -66,8 +69,7 @@ export default function PlayerArea() {
       timeoutsRef.current.forEach(clearTimeout);
       timeoutsRef.current = [];
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase, isAnimating]);
+  }, [phase, isAnimating, activePlayers]);
 
   // Reset on phase changes away from settlement
   useEffect(() => {
@@ -145,6 +147,16 @@ export default function PlayerArea() {
                     handResult.result === 'PLAYER_BLACKJACK' ||
                     handResult.result === 'PLAYER_BLACKJACK_SUITED');
                 const isBust = handEval.isBust;
+                const hasLiveBlackjack =
+                  hand.doubleCount === 0 &&
+                  hand.cards.length === 2 &&
+                  hand.cards.every((c) => c.faceUp) &&
+                  isBlackjack(hand.cards);
+                const blackjackExplosion = hasLiveBlackjack
+                  ? isSuitedBlackjack(hand.cards)
+                    ? 'suited'
+                    : 'blackjack'
+                  : 'none';
 
                 return (
                   <div
@@ -183,6 +195,7 @@ export default function PlayerArea() {
                         isWinner={!!isWinner && showResults}
                         isBust={isBust}
                         showScore={hand.cards.length > 0}
+                        blackjackExplosion={blackjackExplosion}
                         baseDelay={0}
                         hideEmpty={isDealing}
                       />

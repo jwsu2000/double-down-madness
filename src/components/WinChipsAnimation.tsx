@@ -12,6 +12,7 @@ interface FlyingChip {
   delay: number;
   value: ChipValue;
   size: number;
+  spin: number;
 }
 
 export default function WinChipsAnimation() {
@@ -27,21 +28,37 @@ export default function WinChipsAnimation() {
   const isWin = phase === 'SETTLEMENT' && settlementReady && mySettlement && mySettlement.payout > 0;
 
   useEffect(() => {
+    let cancelled = false;
+
     if (isWin && mySettlement) {
       const isBJ = mySettlement.result.includes('BLACKJACK') && mySettlement.result !== 'DEALER_BLACKJACK';
       const chipCount = isBJ ? 16 : 8;
+      const denoms = chipDenominations.length > 0 ? chipDenominations : [1];
       const newChips: FlyingChip[] = Array.from({ length: chipCount }, (_, i) => ({
         id: i,
         x: (Math.random() - 0.5) * 280,
         delay: Math.random() * 0.35,
-        value: chipDenominations[Math.floor(Math.random() * chipDenominations.length)],
+        value: denoms[Math.floor(Math.random() * denoms.length)],
         size: 28 + Math.random() * 16,
+        spin: Math.random() > 0.5 ? 360 : -360,
       }));
-      setChips(newChips);
+      const t = window.setTimeout(() => {
+        if (!cancelled) setChips(newChips);
+      }, 0);
+      return () => {
+        cancelled = true;
+        window.clearTimeout(t);
+      };
     } else {
-      setChips([]);
+      const t = window.setTimeout(() => {
+        if (!cancelled) setChips([]);
+      }, 0);
+      return () => {
+        cancelled = true;
+        window.clearTimeout(t);
+      };
     }
-  }, [isWin, mySettlement]);
+  }, [chipDenominations, isWin, mySettlement]);
 
   return (
     <AnimatePresence>
@@ -58,7 +75,7 @@ export default function WinChipsAnimation() {
                 y: -window.innerHeight * 0.55,
                 scale: [0.3, 1.1, 0.7],
                 opacity: [0, 1, 1, 0],
-                rotate: Math.random() > 0.5 ? 360 : -360,
+                rotate: chip.spin,
               }}
               transition={{
                 duration: 1.2,

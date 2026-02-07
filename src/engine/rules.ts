@@ -37,6 +37,7 @@ export type ChipValue = number;
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 export const STARTING_BALANCE = 1000;
+export const MAX_BUY_IN = 100_000_000;
 export const SIDE_BET_PAYOUT = 11; // 11:1
 
 // ─── Insurance ────────────────────────────────────────────────────────────────

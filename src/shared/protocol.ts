@@ -159,6 +159,8 @@ export interface ClientToServerEvents {
   send_chat: (data: { text: string }) => void;
   send_dealer_emote: (data: { emote: DealerEmoteKind }) => void;
   add_stack: (data: { playerId: string; amount: number }) => void;
+  transfer_host: (data: { playerId: string }) => void;
+  set_lobby_dealer: (data: { playerId: string }) => void;
   set_chip_denoms: (data: { denominations: number[] }) => void;
 }
 

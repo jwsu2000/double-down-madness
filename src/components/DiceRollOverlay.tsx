@@ -57,13 +57,13 @@ export default function DiceRollOverlay() {
 
   // Start animation when diceRoll data arrives
   useEffect(() => {
-    if (!diceRoll) {
-      setPhase('idle');
-      return;
-    }
+    if (!diceRoll) return;
 
-    // Start tumbling
-    setPhase('tumbling');
+    // Start tumbling on next tick to satisfy strict hook lint rules.
+    const t0 = window.setTimeout(() => {
+      setPhase('tumbling');
+    }, 0);
+    timeoutRef.current.push(t0);
 
     // Rapidly change dice faces
     intervalRef.current = window.setInterval(() => {

@@ -1,10 +1,9 @@
 // ─── Game Engine (Pure State Machine) — Multi-Hand Support ────────────────────
 
-import { type Card, evaluateHand, isBlackjack, TOTAL_CARDS, CUT_CARD_POSITION, SUITS, RANKS } from './deck';
+import { type Card, evaluateHand, TOTAL_CARDS, CUT_CARD_POSITION, SUITS, RANKS } from './deck';
 import {
   type GamePhase,
   type HandResult,
-  type SettlementResult,
   shouldOfferInsurance,
   shouldPeek,
   dealerHasBlackjack,
@@ -356,16 +355,19 @@ export function dealCards(state: GameState): GameState {
   // Deal 1 card face-up to each player hand
   const newHands = [...s.hands];
   for (let i = 0; i < newHands.length; i++) {
-    let card: Card;
-    ({ card, state: s } = drawCard(s, true));
+    const draw = drawCard(s, true);
+    const card = draw.card;
+    s = draw.state;
     newHands[i] = { ...newHands[i], cards: [card] };
   }
 
   // Dealer gets 2 cards: first face-up, second face-down
-  let dealerCard1: Card;
-  let dealerCard2: Card;
-  ({ card: dealerCard1, state: s } = drawCard(s, true));
-  ({ card: dealerCard2, state: s } = drawCard(s, false));
+  const drawDealer1 = drawCard(s, true);
+  const dealerCard1 = drawDealer1.card;
+  s = drawDealer1.state;
+  const drawDealer2 = drawCard(s, false);
+  const dealerCard2 = drawDealer2.card;
+  s = drawDealer2.state;
 
   s = {
     ...s,
@@ -430,8 +432,9 @@ export function playerHit(state: GameState): GameState {
   if (!actions.hit) return state;
 
   let s = state;
-  let card: Card;
-  ({ card, state: s } = drawCard(s, true));
+  const draw = drawCard(s, true);
+  const card = draw.card;
+  s = draw.state;
 
   const newCards = [...hand.cards, card];
   const handEval = evaluateHand(newCards);
@@ -458,8 +461,9 @@ export function playerDouble(state: GameState): GameState {
   const wager = nextDoubleWager(hand.originalBet, hand.doubleCount);
 
   let s = { ...state, balance: state.balance - wager };
-  let card: Card;
-  ({ card, state: s } = drawCard(s, true));
+  const draw = drawCard(s, true);
+  const card = draw.card;
+  s = draw.state;
 
   const newCards = [...hand.cards, card];
   const handEval = evaluateHand(newCards);
@@ -502,8 +506,9 @@ export function dealerDraw(state: GameState): GameState {
 
   // Draw one card
   let s = { ...state, dealerCards };
-  let card: Card;
-  ({ card, state: s } = drawCard(s, true));
+  const draw = drawCard(s, true);
+  const card = draw.card;
+  s = draw.state;
 
   dealerCards = [...s.dealerCards, card];
   s = { ...s, dealerCards };

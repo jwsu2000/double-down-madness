@@ -14,7 +14,7 @@ import type {
   DealerEmoteKind,
 } from '../shared/protocol';
 import type { Card } from '../engine/deck';
-import { getAvailableActions, totalWager, nextDoubleWager, STARTING_BALANCE, DEFAULT_CHIP_DENOMINATIONS, type AvailableActions } from '../engine/rules';
+import { getAvailableActions, totalWager, nextDoubleWager, STARTING_BALANCE, MAX_BUY_IN, DEFAULT_CHIP_DENOMINATIONS, type AvailableActions } from '../engine/rules';
 
 // ─── Stable constants (never create new refs in selectors) ────────────────────
 
@@ -28,6 +28,11 @@ const EMPTY_PF: ProvablyFairInfo = {
   nonce: 0,
   roundNumber: 0,
 };
+
+function normalizeBuyIn(buyIn: number): number {
+  const value = Number.isInteger(buyIn) ? buyIn : STARTING_BALANCE;
+  return Math.max(1, Math.min(MAX_BUY_IN, value));
+}
 
 // ─── Hand History Record ─────────────────────────────────────────────────────
 
@@ -183,6 +188,8 @@ interface GameStore {
   sendChat: (text: string) => void;
   sendDealerEmote: (emote: DealerEmoteKind) => void;
   addStack: (playerId: string, amount: number) => void;
+  transferHost: (playerId: string) => void;
+  setLobbyDealer: (playerId: string) => void;
   setChipDenoms: (denominations: number[]) => void;
 }
 
@@ -383,12 +390,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   createRoom: (name, buyIn) => {
     set({ myName: name });
-    socket.emit('create_room', { playerName: name, buyIn });
+    socket.emit('create_room', { playerName: name, buyIn: normalizeBuyIn(buyIn) });
   },
 
   joinRoom: (code, name, buyIn) => {
     set({ myName: name });
-    socket.emit('join_room', { roomCode: code.toUpperCase(), playerName: name, buyIn });
+    socket.emit('join_room', { roomCode: code.toUpperCase(), playerName: name, buyIn: normalizeBuyIn(buyIn) });
   },
 
   leaveRoom: () => {
@@ -525,6 +532,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
   addStack: (playerId, amount) => {
     socket.emit('add_stack', { playerId, amount });
+  },
+  transferHost: (playerId) => {
+    socket.emit('transfer_host', { playerId });
+  },
+  setLobbyDealer: (playerId) => {
+    socket.emit('set_lobby_dealer', { playerId });
   },
   setChipDenoms: (denominations) => {
     socket.emit('set_chip_denoms', { denominations });
@@ -775,7 +788,10 @@ export function useDisplayBalance(): number {
       timerRef.current = null;
     }
     frozenRef.current = false;
-    setDisplayed(realBalance);
+    timerRef.current = window.setTimeout(() => {
+      setDisplayed(realBalance);
+      timerRef.current = null;
+    }, 0);
   }, [realBalance, phase, isAnimating, players]);
 
   // Cleanup on unmount
@@ -783,7 +799,7 @@ export function useDisplayBalance(): number {
     if (timerRef.current !== null) clearTimeout(timerRef.current);
   }, []);
 
-  return frozenRef.current ? displayed : realBalance;
+  return displayed;
 }
 
 // ─── Settlement-Ready Hook (delays banner/chips until after result cascade) ──
@@ -807,7 +823,10 @@ export function useSettlementReady(): boolean {
 
     // Not in settlement or still animating dealer → not ready
     if (phase !== 'SETTLEMENT' || isAnimating) {
-      setReady(false);
+      timerRef.current = window.setTimeout(() => {
+        setReady(false);
+        timerRef.current = null;
+      }, 0);
       return;
     }
 
@@ -824,11 +843,6 @@ export function useSettlementReady(): boolean {
       if (timerRef.current !== null) clearTimeout(timerRef.current);
     };
   }, [phase, isAnimating, players]);
-
-  // Reset immediately when leaving settlement
-  useEffect(() => {
-    if (phase !== 'SETTLEMENT') setReady(false);
-  }, [phase]);
 
   return ready;
 }

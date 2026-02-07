@@ -1,6 +1,6 @@
 // ─── Ledger Drawer — Player Buy-in / Stack / P&L ──────────────────────────────
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore, type DepartedPlayer } from '../hooks/useGameState';
 
@@ -11,15 +11,39 @@ export default function LedgerDrawer() {
   const myPlayerId = useGameStore((s) => s.myPlayerId);
   const departedPlayers = useGameStore((s) => s.departedPlayers);
   const addStack = useGameStore((s) => s.addStack);
+  const transferHost = useGameStore((s) => s.transferHost);
   const [topUpAmount, setTopUpAmount] = useState(100);
+  const [inviteStatus, setInviteStatus] = useState<'idle' | 'copied' | 'error'>('idle');
 
   const dealerPlayerId = tableState?.buttonPlayerId ?? null;
   const activePlayers = (tableState?.players ?? []).filter((p) => p.id !== dealerPlayerId);
   const visibleDepartedPlayers = departedPlayers.filter((p) => !p.isDealer);
   const isHost = !!myPlayerId && myPlayerId === tableState?.hostId;
   const canTopUpStacks = isHost && tableState?.phase !== 'LOBBY';
+  const canTransferOwnership = isHost && tableState?.phase !== 'LOBBY';
   const normalizedTopUpAmount = Math.max(0, Math.trunc(topUpAmount));
   const canSubmitTopUp = canTopUpStacks && normalizedTopUpAmount > 0;
+  const roomCode = tableState?.roomCode ?? '';
+  const shareUrl = typeof window !== 'undefined' ? window.location.origin : '';
+  const inviteMessage = [
+    'Join my Double Down Madness table!',
+    `Room code: ${roomCode}`,
+    shareUrl ? `Play here: ${shareUrl}` : '',
+    'Click "Join Room" and enter the room code.',
+  ].filter(Boolean).join('\n');
+
+  useEffect(() => {
+    if (inviteStatus === 'idle') return;
+    const t = window.setTimeout(() => setInviteStatus('idle'), 2400);
+    return () => window.clearTimeout(t);
+  }, [inviteStatus]);
+
+  const handleCopyInvite = async () => {
+    if (!roomCode) return;
+
+    const copied = await copyToClipboard(inviteMessage);
+    setInviteStatus(copied ? 'copied' : 'error');
+  };
 
   // Compute totals across all players (active + departed)
   const totalBuyIn = activePlayers.reduce((sum, p) => sum + p.buyIn, 0)
@@ -73,6 +97,37 @@ export default function LedgerDrawer() {
                 </button>
               </div>
 
+              <div className="mb-4 p-3 rounded-lg border border-charcoal-lighter bg-navy/35">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-cream/65 text-xs uppercase tracking-wider font-medium">
+                      Share Lobby
+                    </p>
+                    <p className="text-cream/35 text-[11px] truncate">
+                      Sends room code {roomCode || '----'} with join link.
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleCopyInvite}
+                    disabled={!roomCode}
+                    className={`px-3 py-1.5 rounded text-[10px] font-bold uppercase tracking-wider transition-colors shrink-0 ${
+                      roomCode
+                        ? 'bg-blue-500/20 text-blue-200 hover:bg-blue-500/30'
+                        : 'bg-charcoal-lighter text-cream/20 cursor-not-allowed'
+                    }`}
+                    title={roomCode ? 'Copy invite message' : 'Room code unavailable'}
+                  >
+                    Copy Invite
+                  </button>
+                </div>
+                {inviteStatus === 'copied' && (
+                  <p className="mt-1 text-[10px] text-casino-green">Invite copied to clipboard.</p>
+                )}
+                {inviteStatus === 'error' && (
+                  <p className="mt-1 text-[10px] text-casino-red">Could not copy invite. Try again.</p>
+                )}
+              </div>
+
               {isHost && (
                 <div className="mb-4 p-3 rounded-lg border border-charcoal-lighter bg-navy/40">
                   <div className="flex items-center justify-between">
@@ -118,7 +173,9 @@ export default function LedgerDrawer() {
                 {activePlayers.map((player) => {
                   const pl = player.balance - player.buyIn;
                   const isMe = player.id === myPlayerId;
+                  const isCurrentHost = player.id === tableState?.hostId;
                   const canTopUpPlayer = canSubmitTopUp && player.connected;
+                  const canTransferToPlayer = canTransferOwnership && !isCurrentHost && player.connected;
 
                   return (
                     <div
@@ -143,6 +200,11 @@ export default function LedgerDrawer() {
                               YOU
                             </span>
                           )}
+                          {isCurrentHost && (
+                            <span className="text-[9px] text-blue-300/80 bg-blue-400/10 px-1.5 py-0.5 rounded font-medium shrink-0">
+                              HOST
+                            </span>
+                          )}
                           {player.isAway && (
                             <span className="text-[8px] text-amber-400/70 bg-amber-400/10 px-1.5 py-0.5 rounded font-medium shrink-0">
                               AWAY
@@ -161,6 +223,20 @@ export default function LedgerDrawer() {
                             title={canTopUpPlayer ? `Add $${normalizedTopUpAmount} to ${player.name}` : 'Unavailable'}
                           >
                             Add ${normalizedTopUpAmount.toLocaleString()}
+                          </button>
+                        )}
+                        {canTransferOwnership && (
+                          <button
+                            onClick={() => transferHost(player.id)}
+                            disabled={!canTransferToPlayer}
+                            className={`w-fit px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider transition-colors ${
+                              canTransferToPlayer
+                                ? 'bg-blue-500/20 text-blue-200 hover:bg-blue-500/30'
+                                : 'bg-charcoal-lighter text-cream/20 cursor-not-allowed'
+                            }`}
+                            title={canTransferToPlayer ? `Pass owner role to ${player.name}` : 'Unavailable'}
+                          >
+                            Make Owner
                           </button>
                         )}
                       </div>
@@ -281,4 +357,34 @@ function PLCell({ value, dimmed }: { value: number; dimmed?: boolean }) {
       {value > 0 ? '+' : ''}${value.toLocaleString()}
     </div>
   );
+}
+
+async function copyToClipboard(text: string): Promise<boolean> {
+  if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      // Fall through to the legacy copy method.
+    }
+  }
+
+  if (typeof document === 'undefined') return false;
+
+  try {
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.setAttribute('readonly', '');
+    textarea.style.position = 'fixed';
+    textarea.style.left = '-9999px';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+    textarea.focus();
+    textarea.select();
+    const copied = document.execCommand('copy');
+    document.body.removeChild(textarea);
+    return copied;
+  } catch {
+    return false;
+  }
 }

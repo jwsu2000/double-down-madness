@@ -87,21 +87,21 @@ export default function App() {
   // In the room lobby — show player list + start button
   if (tableState.phase === 'LOBBY') {
     return (
-      <>
+      <div className="lg:pr-[380px]">
         <RoomLobby />
         <RulesDrawer />
         <ProvablyFairDrawer />
         <BasicStrategyDrawer />
         <ChatDrawer />
         <DiceRollOverlay />
-      </>
+      </div>
     );
   }
 
   // Game in progress
   return (
     <DealAnimationProvider value={dealAnimation}>
-    <div className="min-h-screen flex flex-col bg-navy">
+    <div className="min-h-screen flex flex-col bg-navy lg:pr-[380px]">
       <Header />
 
       <main className="flex-1 felt-bg relative flex flex-col">
