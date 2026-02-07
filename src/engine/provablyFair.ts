@@ -83,7 +83,7 @@ export async function deriveShoeOrder(
 ): Promise<number[]> {
   // We need enough bytes to generate TOTAL_CARDS indices with rejection sampling.
   // Worst case we may need many more bytes, so generate plenty.
-  const byteStream = await generateByteStream(serverSeed, clientSeed, nonce, TOTAL_CARDS * 8);
+  let byteStream = await generateByteStream(serverSeed, clientSeed, nonce, TOTAL_CARDS * 8);
 
   const indices: number[] = [];
   const available = Array.from({ length: TOTAL_CARDS }, (_, i) => i);
@@ -98,18 +98,13 @@ export async function deriveShoeOrder(
     do {
       // Read 4 bytes as uint32
       if (byteOffset + 4 > byteStream.length) {
-        // Extend byte stream if needed
-        const extra = await generateByteStream(serverSeed, clientSeed, nonce, TOTAL_CARDS * 4);
-        const extended = new Uint8Array(byteStream.length + extra.length);
-        extended.set(byteStream);
-        extended.set(extra, byteStream.length);
-        // Just use modulo for edge cases
-        rand = ((byteStream[byteOffset % byteStream.length] << 24) |
-                (byteStream[(byteOffset + 1) % byteStream.length] << 16) |
-                (byteStream[(byteOffset + 2) % byteStream.length] << 8) |
-                byteStream[(byteOffset + 3) % byteStream.length]) >>> 0;
-        byteOffset += 4;
-        break;
+        // Regenerate a longer deterministic stream when additional bytes are needed.
+        byteStream = await generateByteStream(
+          serverSeed,
+          clientSeed,
+          nonce,
+          byteStream.length + TOTAL_CARDS * 4,
+        );
       }
       rand = ((byteStream[byteOffset] << 24) |
               (byteStream[byteOffset + 1] << 16) |

@@ -366,13 +366,21 @@ export class TableController {
     const connected = this.getConnectedPlayers();
     if (connected.length === 0) return null;
 
-    const die1 = Math.floor(Math.random() * 6) + 1;
-    const die2 = Math.floor(Math.random() * 6) + 1;
+    // Map equally likely 2d6 outcomes to players with rejection sampling so
+    // dealer selection is unbiased across different lobby sizes.
+    const usableOutcomes = Math.floor(36 / connected.length) * connected.length;
+    let outcomeIndex = 0;
+    do {
+      outcomeIndex = Math.floor(Math.random() * 36);
+    } while (outcomeIndex >= usableOutcomes);
+
+    const die1 = Math.floor(outcomeIndex / 6) + 1;
+    const die2 = (outcomeIndex % 6) + 1;
     const total = die1 + die2;
 
     const playerIds = connected.map((p) => p.id);
     const playerNames = connected.map((p) => p.name);
-    const selectedIndex = (total - 1) % connected.length; // map 2-12 to player indices
+    const selectedIndex = outcomeIndex % connected.length;
     const selectedId = playerIds[selectedIndex];
     const selectedName = playerNames[selectedIndex];
 
@@ -430,11 +438,11 @@ export class TableController {
     const player = this.players.get(playerId);
     if (!player || player.hasBet) return false;
     if (this.isHouseDealer(playerId)) return false;
-    if (amount <= 0) return false;
-
-    numHands = Math.max(1, Math.min(5, numHands));
+    if (!Number.isInteger(amount) || amount <= 0) return false;
+    if (!Number.isInteger(sideBet) || sideBet < 0) return false;
+    if (!Number.isInteger(numHands) || numHands < 1 || numHands > 5) return false;
     const totalCost = amount * numHands + sideBet;
-    if (totalCost > player.balance) return false;
+    if (!Number.isSafeInteger(totalCost) || totalCost > player.balance) return false;
 
     player.currentBet = amount;
     player.sideBet = sideBet;
@@ -525,7 +533,7 @@ export class TableController {
   }
 
   allInsuranceDecided(): boolean {
-    return this.getActivePlayers().every((p) => p.insuranceDecided || p.isAway);
+    return this.getActivePlayers().every((p) => !p.connected || p.insuranceDecided || p.isAway);
   }
 
   resolvePeek(): GamePhase {
@@ -747,6 +755,8 @@ export class TableController {
         if (dh.isBust && dh.best === 22) {
           sideBetPayout = player.sideBet * SIDE_BET_PAYOUT;
           totalBalanceChange += player.sideBet + sideBetPayout;
+        } else {
+          sideBetPayout = -player.sideBet;
         }
       }
 
@@ -757,7 +767,11 @@ export class TableController {
         (sum, h) => sum + totalWager(h.originalBet, h.doubleCount),
         0,
       );
-      const totalNetPayout = totalBalanceChange - totalWagered;
+      const totalRoundCost =
+        totalWagered +
+        (player.insuranceTaken ? player.insuranceBet : 0) +
+        player.sideBet;
+      const totalNetPayout = totalBalanceChange - totalRoundCost;
 
       // Generate summary result & message
       const numHands = player.hands.length;

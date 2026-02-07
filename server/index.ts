@@ -180,7 +180,15 @@ io.on('connection', (socket) => {
     const ctx = roomManager.getContextForSocket(socket.id);
     if (!ctx) return;
 
-    const ok = ctx.room.table.placeBet(ctx.playerId, amount, sideBet, numHands ?? 1);
+    const normalizedAmount = Math.trunc(Number(amount));
+    const normalizedSideBet = Math.trunc(Number(sideBet ?? 0));
+    const normalizedHands = Math.trunc(Number(numHands ?? 1));
+    const ok = ctx.room.table.placeBet(
+      ctx.playerId,
+      normalizedAmount,
+      normalizedSideBet,
+      normalizedHands,
+    );
     if (!ok) {
       socket.emit('error', { message: 'Invalid bet' });
       return;
