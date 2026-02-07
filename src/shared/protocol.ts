@@ -36,6 +36,12 @@ export interface TablePlayer {
   isAway: boolean;
 }
 
+export interface TableSpectator {
+  id: string;
+  name: string;
+  connected: boolean;
+}
+
 // ─── Per-hand settlement result ───────────────────────────────────────────────
 
 export interface HandSettlement {
@@ -86,6 +92,8 @@ export interface ClientTableState {
   roomCode: string;
   phase: TablePhase;
   players: TablePlayer[];
+  spectators: TableSpectator[];
+  myIsSpectator: boolean;
   buyInRequests: BuyInRequest[];
   dealerCards: Card[];
   activePlayerId: string | null;
@@ -155,7 +163,7 @@ export interface DealerEmote {
 
 export interface ClientToServerEvents {
   create_room: (data: { playerName: string; buyIn: number }) => void;
-  join_room: (data: { roomCode: string; playerName: string; buyIn: number }) => void;
+  join_room: (data: { roomCode: string; playerName: string; buyIn: number; asSpectator?: boolean }) => void;
   leave_room: () => void;
   start_round: () => void;
   place_bet: (data: { amount: number; sideBet: number; numHands: number }) => void;

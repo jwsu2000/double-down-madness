@@ -6,6 +6,7 @@ import { motion } from 'framer-motion';
 import CardHand from './CardHand';
 import { useGameStore, selectPhase, selectDealerCards } from '../hooks/useGameState';
 import { useDealAnimationContext } from '../hooks/useDealAnimation';
+import { useSound } from '../hooks/useSound';
 import { evaluateHand } from '../engine/deck';
 import type { Card as CardType } from '../engine/deck';
 import { DEALER_EMOTE_OPTIONS } from '../shared/protocol';
@@ -26,6 +27,7 @@ export default function DealerArea() {
   const tableState = useGameStore((s) => s.tableState);
   const setAnimating = useGameStore((s) => s.setAnimating);
   const dealerEmote = useGameStore((s) => s.dealerEmote);
+  const { play } = useSound();
 
   // Deal animation context (stages cards one-by-one during initial deal)
   const { dealerCards: animatedDealerCards, isDealing } = useDealAnimationContext();
@@ -119,6 +121,7 @@ export default function DealerArea() {
     if (holeFlipIndex !== -1) {
       delay += HOLE_FLIP_DELAY;
       const flipT = window.setTimeout(() => {
+        play('flip');
         setDisplayCards((cards) =>
           cards.map((c, i) =>
             i === holeFlipIndex ? { ...c, faceUp: true } : c
@@ -136,6 +139,7 @@ export default function DealerArea() {
       const cardIndex = prev.length + i;
       const newCard = serverCards[cardIndex];
       const t = window.setTimeout(() => {
+        play('deal');
         setDisplayCards((cards) => [...cards, newCard]);
       }, delay);
       timeoutsRef.current.push(t);
@@ -151,7 +155,7 @@ export default function DealerArea() {
     }, delay);
     timeoutsRef.current.push(finalT);
 
-  }, [serverCards, setAnimating, isDealing]);
+  }, [serverCards, setAnimating, isDealing, play]);
 
   // ─── Render ─────────────────────────────────────────────────────────────────
 
@@ -170,12 +174,11 @@ export default function DealerArea() {
       (r) => r.result === 'DEALER_WIN' || r.result === 'DEALER_BLACKJACK'
     );
   const isBust = allRevealed && hand.isBust;
-  const showDealerEmote = !!dealerEmote && dealerEmote.playerId === tableState?.buttonPlayerId;
   const emoteText = dealerEmote ? (DEALER_EMOTE_GLYPHS.get(dealerEmote.emote) ?? dealerEmote.emote) : '';
 
   return (
     <div className="flex flex-col items-center">
-      {showDealerEmote && dealerEmote && (
+      {dealerEmote && (
         <motion.div
           key={dealerEmote.timestamp}
           initial={{ opacity: 0, y: 10, scale: 0.9 }}

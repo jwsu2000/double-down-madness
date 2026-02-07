@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useGameStore, selectMyPlayer, selectPhase, selectMyIsAway } from '../hooks/useGameState';
+import { useGameStore, selectMyPlayer, selectPhase, selectMyIsAway, selectMyIsSpectator } from '../hooks/useGameState';
 import { useSound } from '../hooks/useSound';
 import { MAX_BUY_IN } from '../engine/rules';
 import { DEALER_EMOTE_OPTIONS } from '../shared/protocol';
@@ -22,16 +22,36 @@ export default function BetArea() {
   const requestBuyIn = useGameStore((s) => s.requestBuyIn);
   const sendDealerEmote = useGameStore((s) => s.sendDealerEmote);
   const isAway = useGameStore(selectMyIsAway);
+  const isSpectator = useGameStore(selectMyIsSpectator);
   const toggleAway = useGameStore((s) => s.toggleAway);
   const [buyInRequestAmount, setBuyInRequestAmount] = useState(1000);
   const { play } = useSound();
 
-  if (!tableState || !myPlayer) return null;
+  if (!tableState) return null;
+  if (isSpectator) {
+    const connectedSpectators = (tableState.spectators ?? []).filter((s) => s.connected);
+    return (
+      <div className="flex items-center justify-center p-3 sm:p-4">
+        <div className="w-full max-w-3xl rounded-xl border border-charcoal-lighter bg-charcoal-light/70 px-4 py-3 text-center">
+          <p className="text-gold font-semibold text-sm uppercase tracking-wider">Spectator Mode</p>
+          <p className="text-cream/50 text-xs mt-1">
+            Watching live. You can chat and view table actions, but you cannot bet or play hands.
+          </p>
+          {connectedSpectators.length > 0 && (
+            <p className="text-cream/35 text-[11px] mt-1.5">
+              {connectedSpectators.length} spectator{connectedSpectators.length !== 1 ? 's' : ''} connected
+            </p>
+          )}
+        </div>
+      </div>
+    );
+  }
+  if (!myPlayer) return null;
 
   const isBetting = phase === 'BETTING';
   const isDealer = myPlayer.id === tableState.buttonPlayerId;
   const isHost = myPlayer.id === tableState.hostId;
-  const canDealerEmote = isDealer && (phase === 'BETTING' || phase === 'INSURANCE_OFFERED' || phase === 'PLAYER_TURN');
+  const canUseEmotes = phase !== 'LOBBY';
   const hasBet = myPlayer.hasBet;
   const balance = myPlayer.balance;
   const totalCost = betInput * numHandsInput + sideBetInput;
@@ -46,22 +66,21 @@ export default function BetArea() {
 
   const maxHands = betInput > 0 ? Math.min(5, Math.floor((balance - sideBetInput) / betInput)) : 1;
 
-  if (!isBetting && !canDealerEmote) return null;
+  if (!isBetting && !canUseEmotes) return null;
 
   return (
-    <div className="flex items-start gap-4 sm:gap-6 p-4 justify-center">
+    <div className="flex items-start gap-3 sm:gap-6 p-3 sm:p-4 justify-center">
       <div className="hidden sm:flex flex-col items-center pt-1">
         <BalanceChipStack />
       </div>
 
-      <div className="flex flex-col items-center gap-3 flex-1 max-w-lg">
-        {canDealerEmote ? (
-          <div className="flex flex-col items-center gap-3 py-4">
-            <div className="text-gold text-lg font-bold">You are the house dealer</div>
-            <p className="text-cream/45 text-sm text-center max-w-xs">
-              Dealers do not place bets or play hands. Send table emotes instead.
-            </p>
-            <div className="flex gap-2 flex-wrap justify-center">
+      <div className="flex flex-col items-center gap-3 flex-1 w-full max-w-3xl">
+        {canUseEmotes && (
+          <div className="w-full rounded-xl border border-gold/20 bg-charcoal-light/60 px-3 py-2">
+            <div className="text-[10px] uppercase tracking-[0.18em] text-gold/60 font-semibold text-center mb-1.5">
+              Table Emotes
+            </div>
+            <div className="flex gap-1.5 sm:gap-2 flex-wrap justify-center">
               {DEALER_EMOTE_OPTIONS.map((option) => (
                 <EmoteButton
                   key={option.kind}
@@ -73,6 +92,19 @@ export default function BetArea() {
                 />
               ))}
             </div>
+          </div>
+        )}
+
+        {!isBetting ? (
+          <div className="flex flex-col items-center gap-2 py-2">
+            <div className="text-cream/45 text-sm text-center">Emotes are enabled for all players during the hand.</div>
+          </div>
+        ) : isDealer ? (
+          <div className="flex flex-col items-center gap-3 py-4">
+            <div className="text-gold text-lg font-bold">You are the house dealer</div>
+            <p className="text-cream/45 text-sm text-center max-w-xs">
+              Dealers do not place bets or play hands.
+            </p>
             <div className="flex gap-2 mt-2 flex-wrap justify-center">
               {bettingStatus.map((p) => (
                 <BetStatusPill key={p.id} player={p} />
@@ -186,7 +218,7 @@ export default function BetArea() {
           <>
             <ChipSelector />
 
-            <div className="flex items-center gap-4 sm:gap-6 flex-wrap justify-center">
+            <div className="flex items-center gap-3 sm:gap-6 flex-wrap justify-center">
               <div className="flex flex-col items-center">
                 <span className="text-cream/50 text-xs uppercase tracking-wider mb-1">Per Hand</span>
                 <AnimatePresence mode="wait">
@@ -210,7 +242,7 @@ export default function BetArea() {
                       key={n}
                       onClick={() => { setNumHands(n); play('chip'); }}
                       disabled={n > maxHands}
-                      className={`w-8 h-8 rounded-lg text-sm font-bold transition-all duration-150
+                      className={`w-8 h-8 rounded-lg text-xs sm:text-sm font-bold transition-all duration-150
                         ${n === numHandsInput
                           ? 'bg-gold text-charcoal shadow-lg ring-2 ring-gold-light/40'
                           : n <= maxHands
@@ -281,7 +313,7 @@ export default function BetArea() {
               <motion.button
                 onClick={() => { placeBet(); play('deal'); }}
                 disabled={!canDeal}
-                className={`px-7 py-2.5 rounded-lg font-bold text-sm uppercase tracking-wider
+                className={`w-full sm:w-auto max-w-[260px] px-7 py-2.5 rounded-lg font-bold text-sm uppercase tracking-wider
                   transition-all duration-200 shadow-lg
                   ${canDeal
                     ? 'bg-gradient-to-b from-gold to-gold-dark text-charcoal hover:from-gold-light hover:to-gold cursor-pointer'
@@ -321,7 +353,7 @@ function EmoteButton({ label, onClick }: { label: string; onClick: () => void })
   return (
     <motion.button
       onClick={onClick}
-      className="px-4 py-2 rounded-lg font-bold text-sm uppercase tracking-wider
+      className="px-3 py-1.5 rounded-lg font-bold text-xs uppercase tracking-wide
         bg-gradient-to-b from-gold to-gold-dark text-charcoal hover:from-gold-light hover:to-gold
         transition-all duration-200 shadow-lg cursor-pointer"
       whileHover={{ scale: 1.05 }}

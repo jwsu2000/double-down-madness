@@ -1,7 +1,7 @@
-// ─── Player Action Buttons — Multiplayer ──────────────────────────────────────
+﻿// â”€â”€â”€ Player Action Buttons - Multiplayer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 import { motion } from 'framer-motion';
-import { useGameStore, selectPhase, selectIsMyTurn, selectMyActions, selectMyNextDouble } from '../hooks/useGameState';
+import { useGameStore, selectPhase, selectIsMyTurn, selectMyActions, selectMyNextDouble, selectMyIsSpectator } from '../hooks/useGameState';
 import { useDealAnimationContext } from '../hooks/useDealAnimation';
 import { useSound } from '../hooks/useSound';
 
@@ -16,6 +16,7 @@ export default function ActionButtons() {
   const stand = useGameStore((s) => s.stand);
   const doDouble = useGameStore((s) => s.doDouble);
   const insurance = useGameStore((s) => s.insurance);
+  const isSpectator = useGameStore(selectMyIsSpectator);
   const { play } = useSound();
   const { isDealing } = useDealAnimationContext();
 
@@ -52,12 +53,35 @@ export default function ActionButtons() {
     );
   }
 
+  if (isSpectator) {
+    if (phase === 'PLAYER_TURN') {
+      const activePlayer = tableState?.players.find((p) => p.id === tableState.activePlayerId);
+      return (
+        <div className="flex flex-col items-center gap-1 py-3">
+          <span className="text-cream/45 text-xs uppercase tracking-wider">Spectating</span>
+          <span className="text-cream/55 text-sm">
+            {activePlayer ? `${activePlayer.name}'s turn` : 'Watching hand'}
+          </span>
+        </div>
+      );
+    }
+    if (phase === 'INSURANCE_OFFERED') {
+      return (
+        <div className="flex flex-col items-center gap-1 py-3">
+          <span className="text-cream/45 text-xs uppercase tracking-wider">Spectating</span>
+          <span className="text-cream/55 text-sm">Players are deciding insurance...</span>
+        </div>
+      );
+    }
+    return null;
+  }
+
   // Insurance phase
   if (phase === 'INSURANCE_OFFERED') {
     const myPlayer = tableState?.players.find((p) => p.id === myPlayerId);
     const alreadyDecided = myPlayer && (myPlayer.hands.length === 0 || tableState?.phase !== 'INSURANCE_OFFERED');
 
-    // Check if I already decided (via the insuranceDecided flag — not in protocol, but hasBet is)
+    // Check if I already decided (via the insuranceDecided flag - not in protocol, but hasBet is)
     // For simplicity, once I click, the server will update and the phase may change
     return (
       <div className="flex gap-3 justify-center py-3">
@@ -94,7 +118,7 @@ export default function ActionButtons() {
   const activePlayer = tableState?.players.find((p) => p.id === tableState.activePlayerId);
   const activePlayerName = activePlayer?.name ?? 'Unknown';
 
-  // Not my turn — show waiting message
+  // Not my turn - show waiting message
   if (!isMyTurn) {
     return (
       <div className="flex flex-col items-center gap-1 py-3">
@@ -112,7 +136,7 @@ export default function ActionButtons() {
     );
   }
 
-  // My turn — show action buttons
+  // My turn - show action buttons
   const myPlayerData = tableState?.players.find((p) => p.id === myPlayerId);
   const activeHandIdx = tableState?.activeHandIndex ?? 0;
   const totalHands = myPlayerData?.hands.length ?? 1;
@@ -125,8 +149,8 @@ export default function ActionButtons() {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
     >
-      <div className="text-gold/70 text-xs font-medium">
-        Your Turn{isMultiHand ? ` — Hand ${activeHandIdx + 1}/${totalHands}` : ''}
+      <div className="text-gold/70 text-xs font-medium text-center px-2">
+        Your Turn{isMultiHand ? ` - Hand ${activeHandIdx + 1}/${totalHands}` : ''}
       </div>
       <div className="flex gap-2 sm:gap-3 justify-center flex-wrap">
         <ActionButton
@@ -172,7 +196,7 @@ function ActionButton({ label, onClick, disabled, color = 'default' }: ActionBut
       onClick={onClick}
       disabled={disabled}
       className={`
-        px-5 py-2.5 sm:px-6 sm:py-3 rounded-lg font-bold text-sm uppercase tracking-wider
+        px-3.5 py-2.5 sm:px-6 sm:py-3 rounded-lg font-bold text-[11px] sm:text-sm uppercase tracking-wider
         bg-gradient-to-b shadow-lg transition-all duration-150
         ${disabled ? 'opacity-30 cursor-not-allowed from-charcoal-lighter to-charcoal text-cream/40' : `cursor-pointer ${colorClasses[color]}`}
       `}
@@ -183,3 +207,4 @@ function ActionButton({ label, onClick, disabled, color = 'default' }: ActionBut
     </motion.button>
   );
 }
+

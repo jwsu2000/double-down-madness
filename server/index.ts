@@ -27,16 +27,18 @@ function parseAllowedOrigins(envValue: string | undefined): string[] {
 }
 
 const configuredClientOrigins = parseAllowedOrigins(process.env.CLIENT_ORIGIN);
-const defaultDevOrigins = ['http://localhost:5173', 'http://127.0.0.1:5173'];
 const socketCorsOrigin =
   configuredClientOrigins.length > 0
     ? configuredClientOrigins
     : process.env.NODE_ENV === 'production'
       ? true
-      : defaultDevOrigins;
+      : true;
 
 if (process.env.NODE_ENV === 'production' && configuredClientOrigins.length === 0) {
   console.warn('[cors] CLIENT_ORIGIN not set; allowing all origins for Socket.IO');
+}
+if (process.env.NODE_ENV !== 'production' && configuredClientOrigins.length === 0) {
+  console.warn('[cors] Dev mode with no CLIENT_ORIGIN; allowing all origins (LAN/mobile friendly)');
 }
 
 // ─── Socket.IO ────────────────────────────────────────────────────────────────
@@ -72,8 +74,8 @@ function broadcastState(roomCode: string) {
   const room = roomManager.getRoom(roomCode);
   if (!room) return;
 
-  for (const [playerId, socketId] of room.playerToSocket) {
-    const state = room.table.getClientState(playerId);
+  for (const [participantId, socketId] of room.participantToSocket) {
+    const state = room.table.getClientState(participantId);
     io.to(socketId).emit('game_state', state);
   }
 }
@@ -96,22 +98,23 @@ io.on('connection', (socket) => {
       socket.join(roomCode);
       socket.emit('room_created', { roomCode, playerId });
       broadcastState(roomCode);
-      console.log(`[room:create] ${roomCode} by ${playerName} (${playerId})`);
+      console.log(`[room-create] ${roomCode} by ${playerName} (${playerId})`);
     } catch (err) {
       socket.emit('error', { message: 'Failed to create room' });
-      console.error('[room:create] error', err);
+      console.error('[room-create] error', err);
     }
   });
 
   // ─── Join Room ────────────────────────────────────────────────────
 
-  socket.on('join_room', ({ roomCode, playerName, buyIn }) => {
-    if (!isValidBuyIn(buyIn)) {
+  socket.on('join_room', ({ roomCode, playerName, buyIn, asSpectator }) => {
+    if (!asSpectator && !isValidBuyIn(buyIn)) {
       socket.emit('error', { message: `Buy-in must be between $1 and $${MAX_BUY_IN.toLocaleString()}` });
       return;
     }
 
-    const result = roomManager.joinRoom(socket.id, roomCode, playerName, buyIn);
+    const normalizedBuyIn = isValidBuyIn(buyIn) ? buyIn : 1;
+    const result = roomManager.joinRoom(socket.id, roomCode, playerName, normalizedBuyIn, !!asSpectator);
     if (result.error) {
       socket.emit('error', { message: result.error });
       return;
@@ -119,7 +122,7 @@ io.on('connection', (socket) => {
     socket.join(roomCode.toUpperCase());
     socket.emit('room_joined', { roomCode: roomCode.toUpperCase(), playerId: result.playerId! });
     broadcastState(roomCode.toUpperCase());
-    console.log(`[room:join] ${roomCode} by ${playerName} (${result.playerId})`);
+    console.log(`[room-join] ${roomCode} by ${playerName} (${result.playerId})${asSpectator ? ' [spectator]' : ''}`);
   });
 
   // ─── Leave Room ───────────────────────────────────────────────────
@@ -129,7 +132,7 @@ io.on('connection', (socket) => {
     if (rc) {
       socket.leave(rc);
       broadcastState(rc);
-      console.log(`[room:leave] ${rc} by ${socket.id}`);
+      console.log(`[room-leave] ${rc} by ${socket.id}`);
     }
   });
 
@@ -138,6 +141,10 @@ io.on('connection', (socket) => {
   socket.on('start_round', async () => {
     const ctx = roomManager.getContextForSocket(socket.id);
     if (!ctx) return;
+    if (ctx.isSpectator) {
+      socket.emit('error', { message: 'Spectators cannot start rounds' });
+      return;
+    }
 
     // Only host can start
     if (ctx.playerId !== ctx.room.table.hostId) {
@@ -179,6 +186,10 @@ io.on('connection', (socket) => {
   socket.on('place_bet', ({ amount, sideBet, numHands }) => {
     const ctx = roomManager.getContextForSocket(socket.id);
     if (!ctx) return;
+    if (ctx.isSpectator) {
+      socket.emit('error', { message: 'Spectators cannot place bets' });
+      return;
+    }
 
     const normalizedAmount = Math.trunc(Number(amount));
     const normalizedSideBet = Math.trunc(Number(sideBet ?? 0));
@@ -207,6 +218,10 @@ io.on('connection', (socket) => {
   socket.on('player_action', ({ action }) => {
     const ctx = roomManager.getContextForSocket(socket.id);
     if (!ctx) return;
+    if (ctx.isSpectator) {
+      socket.emit('error', { message: 'Spectators cannot play hands' });
+      return;
+    }
 
     const ok = ctx.room.table.playerAction(ctx.playerId, action);
     if (!ok) {
@@ -222,6 +237,10 @@ io.on('connection', (socket) => {
   socket.on('insurance_decision', ({ take }) => {
     const ctx = roomManager.getContextForSocket(socket.id);
     if (!ctx) return;
+    if (ctx.isSpectator) {
+      socket.emit('error', { message: 'Spectators cannot take insurance' });
+      return;
+    }
 
     ctx.room.table.playerInsurance(ctx.playerId, take);
 
@@ -238,6 +257,10 @@ io.on('connection', (socket) => {
   socket.on('set_client_seed', ({ seed }) => {
     const ctx = roomManager.getContextForSocket(socket.id);
     if (!ctx) return;
+    if (ctx.isSpectator) {
+      socket.emit('error', { message: 'Spectators cannot change client seed' });
+      return;
+    }
 
     const ok = ctx.room.table.setClientSeed(seed);
     if (!ok) {
@@ -246,7 +269,7 @@ io.on('connection', (socket) => {
     }
 
     broadcastState(ctx.roomCode);
-    console.log(`[seed:set] Room ${ctx.roomCode} new client seed by ${ctx.playerId}`);
+    console.log(`[seed-set] Room ${ctx.roomCode} new client seed by ${ctx.playerId}`);
   });
 
   // ─── Toggle Away ──────────────────────────────────────────────────
@@ -254,6 +277,10 @@ io.on('connection', (socket) => {
   socket.on('toggle_away', () => {
     const ctx = roomManager.getContextForSocket(socket.id);
     if (!ctx) return;
+    if (ctx.isSpectator) {
+      socket.emit('error', { message: 'Spectators do not have away status' });
+      return;
+    }
 
     const ok = ctx.room.table.toggleAway(ctx.playerId);
     if (!ok) return;
@@ -276,7 +303,7 @@ io.on('connection', (socket) => {
 
     broadcastState(ctx.roomCode);
     const player = ctx.room.table.players.get(ctx.playerId);
-    console.log(`[away:toggle] ${ctx.playerId} in ${ctx.roomCode} → ${player?.isAway ? 'AWAY' : 'BACK'}`);
+    console.log(`[away-toggle] ${ctx.playerId} in ${ctx.roomCode} -> ${player?.isAway ? 'AWAY' : 'BACK'}`);
   });
 
   // ─── Chat ──────────────────────────────────────────────────────────
@@ -288,13 +315,13 @@ io.on('connection', (socket) => {
     const trimmed = text.trim().slice(0, 500);
     if (!trimmed) return;
 
-    const player = ctx.room.table.players.get(ctx.playerId);
-    if (!player) return;
+    const participantName = ctx.room.table.getParticipantName(ctx.playerId);
+    if (!participantName) return;
 
     const msg = {
       id: `${Date.now()}-${ctx.playerId}-${Math.random().toString(36).slice(2, 8)}`,
       playerId: ctx.playerId,
-      playerName: player.name,
+      playerName: participantName,
       text: trimmed,
       timestamp: Date.now(),
     };
@@ -306,9 +333,8 @@ io.on('connection', (socket) => {
   socket.on('send_dealer_emote', ({ emote }) => {
     const ctx = roomManager.getContextForSocket(socket.id);
     if (!ctx) return;
-
-    if (ctx.playerId !== ctx.room.table.buttonPlayerId) {
-      socket.emit('error', { message: 'Only the dealer can send emotes' });
+    if (ctx.isSpectator) {
+      socket.emit('error', { message: 'Spectators cannot send emotes' });
       return;
     }
 
@@ -328,6 +354,10 @@ io.on('connection', (socket) => {
   socket.on('add_stack', ({ playerId, amount }) => {
     const ctx = roomManager.getContextForSocket(socket.id);
     if (!ctx) return;
+    if (ctx.isSpectator) {
+      socket.emit('error', { message: 'Spectators cannot modify stacks' });
+      return;
+    }
 
     const ok = ctx.room.table.addStack(ctx.playerId, playerId, Math.trunc(amount));
     if (!ok) {
@@ -341,6 +371,10 @@ io.on('connection', (socket) => {
   socket.on('request_buy_in', ({ amount }) => {
     const ctx = roomManager.getContextForSocket(socket.id);
     if (!ctx) return;
+    if (ctx.isSpectator) {
+      socket.emit('error', { message: 'Spectators cannot request buy-ins' });
+      return;
+    }
 
     const ok = ctx.room.table.requestBuyIn(ctx.playerId, Math.trunc(amount));
     if (!ok) {
@@ -354,6 +388,10 @@ io.on('connection', (socket) => {
   socket.on('respond_buy_in_request', ({ playerId, approve }) => {
     const ctx = roomManager.getContextForSocket(socket.id);
     if (!ctx) return;
+    if (ctx.isSpectator) {
+      socket.emit('error', { message: 'Spectators cannot respond to buy-ins' });
+      return;
+    }
 
     const ok = ctx.room.table.respondBuyInRequest(ctx.playerId, playerId, !!approve);
     if (!ok) {
@@ -369,6 +407,10 @@ io.on('connection', (socket) => {
   socket.on('transfer_host', ({ playerId }) => {
     const ctx = roomManager.getContextForSocket(socket.id);
     if (!ctx) return;
+    if (ctx.isSpectator) {
+      socket.emit('error', { message: 'Spectators cannot transfer ownership' });
+      return;
+    }
 
     const ok = ctx.room.table.transferHost(ctx.playerId, playerId);
     if (!ok) {
@@ -382,6 +424,10 @@ io.on('connection', (socket) => {
   socket.on('set_lobby_dealer', ({ playerId }) => {
     const ctx = roomManager.getContextForSocket(socket.id);
     if (!ctx) return;
+    if (ctx.isSpectator) {
+      socket.emit('error', { message: 'Spectators cannot set the dealer' });
+      return;
+    }
 
     const ok = ctx.room.table.setLobbyDealer(ctx.playerId, playerId);
     if (!ok) {
@@ -395,6 +441,10 @@ io.on('connection', (socket) => {
   socket.on('set_chip_denoms', ({ denominations }) => {
     const ctx = roomManager.getContextForSocket(socket.id);
     if (!ctx) return;
+    if (ctx.isSpectator) {
+      socket.emit('error', { message: 'Spectators cannot change chip denominations' });
+      return;
+    }
 
     const ok = ctx.room.table.setChipDenominations(ctx.playerId, denominations);
     if (!ok) {
@@ -403,7 +453,7 @@ io.on('connection', (socket) => {
     }
 
     broadcastState(ctx.roomCode);
-    console.log(`[chips:set] ${ctx.roomCode} denoms → [${ctx.room.table.chipDenominations}]`);
+    console.log(`[chips-set] ${ctx.roomCode} denoms -> [${ctx.room.table.chipDenominations}]`);
   });
 
   // ─── Ready for Next Round ─────────────────────────────────────────
@@ -411,6 +461,10 @@ io.on('connection', (socket) => {
   socket.on('ready_for_next', async () => {
     const ctx = roomManager.getContextForSocket(socket.id);
     if (!ctx) return;
+    if (ctx.isSpectator) {
+      socket.emit('error', { message: 'Spectators are always observing' });
+      return;
+    }
 
     ctx.room.table.playerReady(ctx.playerId);
 

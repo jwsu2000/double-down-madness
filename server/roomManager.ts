@@ -1,10 +1,5 @@
-// ─── Room Manager ─────────────────────────────────────────────────────────────
-// Manages rooms: create, join, leave, disconnect, reconnect.
-
-import { TableController } from './tableController';
+﻿import { TableController } from './tableController';
 import type { ClientTableState } from '../src/shared/protocol';
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function generateRoomCode(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -18,26 +13,21 @@ function generateRoomCode(): string {
 function generatePlayerId(): string {
   const bytes = new Uint8Array(8);
   crypto.getRandomValues(bytes);
-  return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+  return Array.from(bytes).map((b) => b.toString(16).padStart(2, '0')).join('');
 }
-
-// ─── Room Interface ───────────────────────────────────────────────────────────
 
 export interface Room {
   code: string;
   table: TableController;
-  socketToPlayer: Map<string, string>;
-  playerToSocket: Map<string, string>;
+  socketToParticipant: Map<string, string>;
+  participantToSocket: Map<string, string>;
 }
-
-// ─── Room Manager Class ───────────────────────────────────────────────────────
 
 export class RoomManager {
   private rooms = new Map<string, Room>();
   private socketToRoom = new Map<string, string>();
 
   createRoom(socketId: string, playerName: string, buyIn?: number): { roomCode: string; playerId: string } {
-    // Generate unique room code
     let code = generateRoomCode();
     while (this.rooms.has(code)) {
       code = generateRoomCode();
@@ -50,8 +40,8 @@ export class RoomManager {
     const room: Room = {
       code,
       table,
-      socketToPlayer: new Map([[socketId, playerId]]),
-      playerToSocket: new Map([[playerId, socketId]]),
+      socketToParticipant: new Map([[socketId, playerId]]),
+      participantToSocket: new Map([[playerId, socketId]]),
     };
 
     this.rooms.set(code, room);
@@ -60,26 +50,38 @@ export class RoomManager {
     return { roomCode: code, playerId };
   }
 
-  joinRoom(socketId: string, roomCode: string, playerName: string, buyIn?: number): { playerId?: string; error?: string } {
+  joinRoom(
+    socketId: string,
+    roomCode: string,
+    playerName: string,
+    buyIn?: number,
+    asSpectator = false,
+  ): { playerId?: string; error?: string } {
     const code = roomCode.toUpperCase();
     const room = this.rooms.get(code);
     if (!room) return { error: 'Room not found' };
 
-    const connectedCount = [...room.table.players.values()].filter(p => p.connected).length;
-    if (connectedCount >= 5) return { error: 'Room is full (max 5 players)' };
+    if (!asSpectator) {
+      const connectedPlayers = [...room.table.players.values()].filter((p) => p.connected).length;
+      if (connectedPlayers >= 5) return { error: 'Room is full (max 5 players)' };
 
-    // Check if game is mid-round (only allow join in LOBBY or BETTING)
-    if (room.table.phase !== 'LOBBY' && room.table.phase !== 'BETTING') {
-      return { error: 'Game in progress — wait for next round' };
+      if (room.table.phase !== 'LOBBY' && room.table.phase !== 'BETTING') {
+        return { error: 'Game in progress - join as spectator or wait for next round' };
+      }
     }
 
-    const playerId = generatePlayerId();
-    room.table.addPlayer(playerId, playerName, socketId, buyIn);
-    room.socketToPlayer.set(socketId, playerId);
-    room.playerToSocket.set(playerId, socketId);
+    const participantId = generatePlayerId();
+    if (asSpectator) {
+      room.table.addSpectator(participantId, playerName, socketId);
+    } else {
+      room.table.addPlayer(participantId, playerName, socketId, buyIn);
+    }
+
+    room.socketToParticipant.set(socketId, participantId);
+    room.participantToSocket.set(participantId, socketId);
     this.socketToRoom.set(socketId, code);
 
-    return { playerId };
+    return { playerId: participantId };
   }
 
   leaveRoom(socketId: string): string | null {
@@ -89,17 +91,20 @@ export class RoomManager {
     const room = this.rooms.get(roomCode);
     if (!room) return null;
 
-    const playerId = room.socketToPlayer.get(socketId);
-    if (playerId) {
-      room.table.removePlayer(playerId);
-      room.socketToPlayer.delete(socketId);
-      room.playerToSocket.delete(playerId);
+    const participantId = room.socketToParticipant.get(socketId);
+    if (participantId) {
+      if (room.table.isSpectator(participantId)) {
+        room.table.removeSpectator(participantId);
+      } else {
+        room.table.removePlayer(participantId);
+      }
+      room.socketToParticipant.delete(socketId);
+      room.participantToSocket.delete(participantId);
     }
 
     this.socketToRoom.delete(socketId);
 
-    // Cleanup empty rooms
-    if (room.table.players.size === 0) {
+    if (room.table.players.size === 0 && room.table.spectators.size === 0) {
       this.rooms.delete(roomCode);
       return null;
     }
@@ -114,22 +119,23 @@ export class RoomManager {
     const room = this.rooms.get(roomCode);
     if (!room) return null;
 
-    const playerId = room.socketToPlayer.get(socketId);
-    if (playerId) {
-      room.table.setPlayerConnected(playerId, false);
-      room.socketToPlayer.delete(socketId);
-      room.playerToSocket.delete(playerId);
+    const participantId = room.socketToParticipant.get(socketId);
+    if (participantId) {
+      if (room.table.isSpectator(participantId)) {
+        room.table.setSpectatorConnected(participantId, false);
+      } else {
+        room.table.setPlayerConnected(participantId, false);
+      }
+      room.socketToParticipant.delete(socketId);
+      room.participantToSocket.delete(participantId);
     }
 
     this.socketToRoom.delete(socketId);
 
-    // If all players disconnected, cleanup after a delay
-    const anyConnected = [...room.table.players.values()].some(p => p.connected);
-    if (!anyConnected) {
-      // Keep room alive for 60s for reconnection
+    if (room.table.getConnectedParticipantCount() === 0) {
       setTimeout(() => {
         const r = this.rooms.get(roomCode);
-        if (r && ![...r.table.players.values()].some(p => p.connected)) {
+        if (r && r.table.getConnectedParticipantCount() === 0) {
           this.rooms.delete(roomCode);
         }
       }, 60_000);
@@ -138,16 +144,19 @@ export class RoomManager {
     return roomCode;
   }
 
-  // ─── Lookups ────────────────────────────────────────────────────────────
-
-  getContextForSocket(socketId: string): { room: Room; playerId: string; roomCode: string } | null {
+  getContextForSocket(socketId: string): { room: Room; playerId: string; roomCode: string; isSpectator: boolean } | null {
     const roomCode = this.socketToRoom.get(socketId);
     if (!roomCode) return null;
     const room = this.rooms.get(roomCode);
     if (!room) return null;
-    const playerId = room.socketToPlayer.get(socketId);
-    if (!playerId) return null;
-    return { room, playerId, roomCode };
+    const participantId = room.socketToParticipant.get(socketId);
+    if (!participantId) return null;
+    return {
+      room,
+      playerId: participantId,
+      roomCode,
+      isSpectator: room.table.isSpectator(participantId),
+    };
   }
 
   getRoom(roomCode: string): Room | undefined {

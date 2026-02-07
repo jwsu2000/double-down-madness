@@ -154,7 +154,7 @@ export default function ChatDrawer() {
   return (
     <>
       {/* Always-visible compact desktop chat */}
-      <div className="hidden lg:flex fixed right-4 bottom-4 w-[320px] h-[300px] z-30">
+      <div className="hidden lg:flex fixed right-4 bottom-4 w-[300px] h-[320px] xl:w-[320px] xl:h-[350px] z-30">
         <ChatPanel className="h-full w-full rounded-2xl overflow-hidden bg-charcoal/95 backdrop-blur-sm" />
       </div>
 
@@ -171,7 +171,7 @@ export default function ChatDrawer() {
             />
 
             <motion.div
-              className="fixed right-0 top-0 h-full w-full sm:w-[380px] z-50 lg:hidden"
+              className="fixed right-0 top-0 h-full w-full sm:w-[380px] z-50 lg:hidden pt-[var(--safe-top)] pb-[var(--safe-bottom)]"
               initial={{ x: '100%' }}
               animate={{ x: 0 }}
               exit={{ x: '100%' }}

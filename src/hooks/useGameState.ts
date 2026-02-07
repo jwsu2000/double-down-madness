@@ -108,6 +108,7 @@ interface GameStore {
   _roomCode: string;
   _provablyFair: ProvablyFairInfo;
   _myIsAway: boolean;
+  _myIsSpectator: boolean;
   _myBuyIn: number;
   _chipDenominations: number[];
 
@@ -154,7 +155,7 @@ interface GameStore {
   disconnect: () => void;
   setMyName: (name: string) => void;
   createRoom: (name: string, buyIn: number) => void;
-  joinRoom: (code: string, name: string, buyIn: number) => void;
+  joinRoom: (code: string, name: string, buyIn: number, asSpectator?: boolean) => void;
   leaveRoom: () => void;
   startRound: () => void;
   placeBet: () => void;
@@ -276,6 +277,7 @@ function computeDerived(data: ClientTableState, myPlayerId: string | null) {
     _roomCode: data.roomCode,
     _provablyFair: data.provablyFair ?? EMPTY_PF,
     _myIsAway: myPlayer?.isAway ?? false,
+    _myIsSpectator: data.myIsSpectator ?? false,
     _myBuyIn: myPlayer?.buyIn ?? STARTING_BALANCE,
     _chipDenominations: data.chipDenominations ?? DEFAULT_CHIP_DENOMINATIONS,
   };
@@ -311,6 +313,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   _roomCode: '',
   _provablyFair: EMPTY_PF,
   _myIsAway: false,
+  _myIsSpectator: false,
   _myBuyIn: STARTING_BALANCE,
   _chipDenominations: [...DEFAULT_CHIP_DENOMINATIONS],
 
@@ -376,6 +379,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       _roomCode: '',
       _provablyFair: EMPTY_PF,
       _myIsAway: false,
+      _myIsSpectator: false,
       _myBuyIn: STARTING_BALANCE,
       _chipDenominations: [...DEFAULT_CHIP_DENOMINATIONS],
       departedPlayers: [],
@@ -395,9 +399,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
     socket.emit('create_room', { playerName: name, buyIn: normalizeBuyIn(buyIn) });
   },
 
-  joinRoom: (code, name, buyIn) => {
+  joinRoom: (code, name, buyIn, asSpectator = false) => {
     set({ myName: name });
-    socket.emit('join_room', { roomCode: code.toUpperCase(), playerName: name, buyIn: normalizeBuyIn(buyIn) });
+    socket.emit('join_room', {
+      roomCode: code.toUpperCase(),
+      playerName: name,
+      buyIn: normalizeBuyIn(buyIn),
+      asSpectator,
+    });
   },
 
   leaveRoom: () => {
@@ -424,6 +433,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       _roomCode: '',
       _provablyFair: EMPTY_PF,
       _myIsAway: false,
+      _myIsSpectator: false,
       _myBuyIn: STARTING_BALANCE,
       _chipDenominations: [...DEFAULT_CHIP_DENOMINATIONS],
       departedPlayers: [],
@@ -606,12 +616,13 @@ socket.on('game_state', (data) => {
   // Track local stats + hand history when settlement arrives
   if (data.phase === 'SETTLEMENT' && data.settlement && prev?.phase !== 'SETTLEMENT') {
     const mySett = derived._mySettlement;
-    if (mySett) {
-      const me = data.players.find((p) => p.id === myPlayerId);
+    const me = data.players.find((p) => p.id === myPlayerId);
 
-      useGameStore.setState((s) => {
-        const stats = { ...s.localStats };
-        // Count each hand separately for stats
+    useGameStore.setState((s) => {
+      const stats = { ...s.localStats };
+
+      // Update personal stats only when this client has a settlement entry.
+      if (mySett) {
         const myHandResults = mySett.handResults ?? [];
         stats.totalHands += Math.max(myHandResults.length, 1);
 
@@ -640,49 +651,53 @@ socket.on('game_state', (data) => {
             0,
           );
         }
+      }
 
-        // Record hand history entry for ALL players
-        const playerEntries: PlayerHandEntry[] = data.players
-          .filter((p) => p.hands.length > 0 && p.hasBet)
-          .map((p) => {
-            const sett = data.settlement?.find((s2) => s2.playerId === p.id);
-            const handEntries: PlayerHandEntryHand[] = p.hands.map((h, hi) => {
-              const hr = sett?.handResults?.find((r) => r.handIndex === hi);
-              return {
-                cards: [...h.cards],
-                bet: h.originalBet,
-                totalWager: totalWager(h.originalBet, h.doubleCount),
-                result: hr?.result ?? h.result ?? '',
-                resultLabel: hr?.message ?? h.message ?? '',
-                payout: hr?.payout ?? 0,
-                actions: [...(h.actions ?? [])],
-              };
-            });
+      // Record hand history entry for all betting players so every client can view it.
+      const playerEntries: PlayerHandEntry[] = data.players
+        .filter((p) => p.hands.length > 0 && p.hasBet)
+        .map((p) => {
+          const sett = data.settlement?.find((s2) => s2.playerId === p.id);
+          const handEntries: PlayerHandEntryHand[] = p.hands.map((h, hi) => {
+            const hr = sett?.handResults?.find((r) => r.handIndex === hi);
             return {
-              id: p.id,
-              name: p.name,
-              hands: handEntries,
-              totalPayout: sett?.payout ?? 0,
-              balanceAfter: p.balance,
-              isMe: p.id === myPlayerId,
+              cards: [...h.cards],
+              bet: h.originalBet,
+              totalWager: totalWager(h.originalBet, h.doubleCount),
+              result: hr?.result ?? h.result ?? '',
+              resultLabel: hr?.message ?? h.message ?? '',
+              payout: hr?.payout ?? 0,
+              actions: [...(h.actions ?? [])],
             };
           });
+          return {
+            id: p.id,
+            name: p.name,
+            hands: handEntries,
+            totalPayout: sett?.payout ?? 0,
+            balanceAfter: p.balance,
+            isMe: p.id === myPlayerId,
+          };
+        });
 
-        const record: HandRecord = {
-          roundNumber: data.roundNumber,
-          timestamp: Date.now(),
-          dealerCards: [...data.dealerCards],
-          players: playerEntries,
-          myResult: mySett.result,
-          myPayout: mySett.payout,
-        };
+      const myEntry = playerEntries.find((p) => p.isMe);
+      const tablePayout = playerEntries.reduce((sum, p) => sum + p.totalPayout, 0);
 
-        return {
-          localStats: stats,
-          handHistory: [...s.handHistory, record],
-        };
-      });
-    }
+      const record: HandRecord = {
+        roundNumber: data.roundNumber,
+        timestamp: Date.now(),
+        dealerCards: [...data.dealerCards],
+        players: playerEntries,
+        // Dealer/spectator views do not have a personal settlement row.
+        myResult: mySett?.result ?? 'TABLE_VIEW',
+        myPayout: mySett?.payout ?? myEntry?.totalPayout ?? tablePayout,
+      };
+
+      return {
+        localStats: stats,
+        handHistory: [...s.handHistory, record],
+      };
+    });
   }
 });
 
@@ -724,6 +739,7 @@ export const selectMyNextDouble = (s: GameStore) => s._myNextDouble;
 export const selectMyTotalWager = (s: GameStore) => s._myTotalWager;
 export const selectProvablyFair = (s: GameStore) => s._provablyFair;
 export const selectMyIsAway = (s: GameStore) => s._myIsAway;
+export const selectMyIsSpectator = (s: GameStore) => s._myIsSpectator;
 export const selectMyBuyIn = (s: GameStore) => s._myBuyIn;
 export const selectChipDenominations = (s: GameStore) => s._chipDenominations;
 

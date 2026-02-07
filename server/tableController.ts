@@ -34,6 +34,7 @@ import type {
   BuyInRequest,
   ClientTableState,
   TablePlayer,
+  TableSpectator,
   TableHand,
   PlayerSettlement,
   HandSettlement,
@@ -75,12 +76,20 @@ export interface ServerPlayer {
   isAway: boolean;
 }
 
+export interface ServerSpectator {
+  id: string;
+  name: string;
+  socketId: string;
+  connected: boolean;
+}
+
 // ─── Table Controller Class ───────────────────────────────────────────────────
 
 export class TableController {
   roomCode: string;
   phase: TablePhase = 'LOBBY';
   players = new Map<string, ServerPlayer>();
+  spectators = new Map<string, ServerSpectator>();
   playerOrder: string[] = [];
   hostId = '';
 
@@ -277,6 +286,20 @@ export class TableController {
     }
   }
 
+  addSpectator(id: string, name: string, socketId: string) {
+    const spectator: ServerSpectator = {
+      id,
+      name,
+      socketId,
+      connected: true,
+    };
+    this.spectators.set(id, spectator);
+  }
+
+  removeSpectator(id: string) {
+    this.spectators.delete(id);
+  }
+
   removePlayer(id: string) {
     this.players.delete(id);
     this.playerOrder = this.playerOrder.filter((pid) => pid !== id);
@@ -304,6 +327,9 @@ export class TableController {
     // If no players left, reset
     if (this.playerOrder.length === 0) {
       this.phase = 'LOBBY';
+      this.hostId = '';
+      this.buttonPlayerId = null;
+      this.buyInRequests.clear();
     }
   }
 
@@ -332,6 +358,13 @@ export class TableController {
         player.isAway = false;
       }
     }
+  }
+
+  setSpectatorConnected(id: string, connected: boolean) {
+    const spectator = this.spectators.get(id);
+    if (!spectator) return;
+    spectator.connected = connected;
+    if (!connected) spectator.socketId = '';
   }
 
   // ─── Away Toggle ─────────────────────────────────────────────────────
@@ -906,6 +939,23 @@ export class TableController {
 
   // ─── Helpers ─────────────────────────────────────────────────────────
 
+  isSpectator(participantId: string): boolean {
+    return this.spectators.has(participantId);
+  }
+
+  getParticipantName(participantId: string): string | null {
+    const player = this.players.get(participantId);
+    if (player) return player.name;
+    const spectator = this.spectators.get(participantId);
+    return spectator?.name ?? null;
+  }
+
+  getConnectedParticipantCount(): number {
+    const connectedPlayers = this.getConnectedPlayers().length;
+    const connectedSpectators = [...this.spectators.values()].filter((s) => s.connected).length;
+    return connectedPlayers + connectedSpectators;
+  }
+
   private isHouseDealer(playerId: string): boolean {
     return this.buttonPlayerId === playerId;
   }
@@ -971,10 +1021,18 @@ export class TableController {
       };
     });
 
+    const spectators: TableSpectator[] = [...this.spectators.values()].map((s) => ({
+      id: s.id,
+      name: s.name,
+      connected: s.connected,
+    }));
+
     const activePlayerId =
       this.phase === 'PLAYER_TURN'
         ? this.playerOrder[this.activePlayerIndex] || null
         : null;
+
+    const myIsSpectator = this.spectators.has(forPlayerId);
 
     const provablyFair: ProvablyFairInfo = {
       serverSeedHash: this.provablyFair?.serverSeedHash || '',
@@ -994,6 +1052,8 @@ export class TableController {
       roomCode: this.roomCode,
       phase: this.phase,
       players,
+      spectators,
+      myIsSpectator,
       buyInRequests: Array.from(this.buyInRequests.values()),
       dealerCards: this.dealerCards.map((c) => ({ ...c })),
       activePlayerId,

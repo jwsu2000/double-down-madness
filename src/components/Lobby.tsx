@@ -17,6 +17,7 @@ export default function Lobby() {
   const [roomCode, setRoomCode] = useState('');
   const [buyIn, setBuyIn] = useState(STARTING_BALANCE);
   const [mode, setMode] = useState<'menu' | 'join'>('menu');
+  const [joinAsSpectator, setJoinAsSpectator] = useState(false);
 
   // Auto-connect on mount
   useEffect(() => {
@@ -24,18 +25,28 @@ export default function Lobby() {
   }, [connect]);
 
   const canCreate = connected && name.trim().length > 0 && buyIn > 0;
-  const canJoin = connected && name.trim().length > 0 && roomCode.trim().length === 4 && buyIn > 0;
+  const canJoin =
+    connected &&
+    name.trim().length > 0 &&
+    roomCode.trim().length === 4 &&
+    (joinAsSpectator || buyIn > 0);
 
   const handleCreate = () => {
     if (canCreate) createRoom(name.trim(), buyIn);
   };
 
   const handleJoin = () => {
-    if (canJoin) joinRoom(roomCode.trim(), name.trim(), buyIn);
+    if (canJoin) joinRoom(roomCode.trim(), name.trim(), buyIn, joinAsSpectator);
   };
 
   return (
-    <div className="min-h-screen bg-navy flex flex-col items-center justify-center p-4">
+    <div
+      className="min-h-dvh bg-navy flex flex-col items-center justify-center px-4 py-4"
+      style={{
+        paddingTop: 'calc(1rem + var(--safe-top))',
+        paddingBottom: 'calc(1rem + var(--safe-bottom))',
+      }}
+    >
       {/* Title */}
       <motion.div
         className="text-center mb-10"
@@ -191,7 +202,7 @@ export default function Lobby() {
 
               <div className="flex gap-2">
                 <motion.button
-                  onClick={() => { setMode('menu'); setRoomCode(''); }}
+                  onClick={() => { setMode('menu'); setRoomCode(''); setJoinAsSpectator(false); }}
                   className="flex-1 py-3 rounded-lg font-bold text-sm uppercase tracking-wider
                     bg-charcoal-lighter text-cream/60 hover:text-cream cursor-pointer transition-colors"
                   whileTap={{ scale: 0.98 }}
@@ -209,9 +220,24 @@ export default function Lobby() {
                   whileHover={canJoin ? { scale: 1.02 } : {}}
                   whileTap={canJoin ? { scale: 0.98 } : {}}
                 >
-                  Join
+                  {joinAsSpectator ? 'Spectate' : 'Join'}
                 </motion.button>
               </div>
+
+              <label className="mt-1 flex items-center justify-center gap-2 text-xs text-cream/55">
+                <input
+                  type="checkbox"
+                  checked={joinAsSpectator}
+                  onChange={(e) => setJoinAsSpectator(e.target.checked)}
+                  className="accent-gold"
+                />
+                Join as spectator
+              </label>
+              {joinAsSpectator && (
+                <p className="text-center text-[11px] text-cream/35">
+                  Spectators can watch and chat but cannot bet or play hands.
+                </p>
+              )}
             </motion.div>
           )}
         </div>

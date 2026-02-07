@@ -1,4 +1,4 @@
-// ─── Hand History Drawer ───────────────────────────────────────────────────────
+﻿// â”€â”€â”€ Hand History Drawer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore, type HandRecord, type PlayerHandEntry, type PlayerHandEntryHand } from '../hooks/useGameState';
@@ -6,7 +6,7 @@ import type { Card } from '../engine/deck';
 import { evaluateHand } from '../engine/deck';
 import { nextDoubleWager } from '../engine/rules';
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const suitSymbols: Record<string, string> = {
   hearts: '\u2665',
@@ -55,7 +55,7 @@ function roundBorderColor(result: string): string {
   return 'border-blue-400/25';
 }
 
-// ─── Cards Row Component ──────────────────────────────────────────────────────
+// â”€â”€â”€ Cards Row Component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function CardsRow({ cards }: { cards: Card[] }) {
   return (
@@ -74,7 +74,7 @@ function CardsRow({ cards }: { cards: Card[] }) {
   );
 }
 
-// ─── Component ────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export default function HandHistory() {
   const show = useGameStore((s) => s.showHistory);
@@ -158,42 +158,46 @@ export default function HandHistory() {
   );
 }
 
-// ─── Summary Bar (my personal stats) ──────────────────────────────────────────
+// â”€â”€â”€ Summary Bar (my personal stats) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function SummaryBar({ history }: { history: HandRecord[] }) {
-  const totalPayout = history.reduce((sum, h) => sum + h.myPayout, 0);
+  const hasPersonalHands = history.some((record) => record.players.some((p) => p.isMe));
+  const modeLabel = hasPersonalHands ? 'Your Stats' : 'Table Stats';
 
-  // Count per-hand results for accuracy across multi-hand play
+  // Count per-hand results for accuracy across multi-hand play.
   let wins = 0;
   let losses = 0;
   let pushes = 0;
   let push22s = 0;
   let totalHands = 0;
+  let totalPayout = 0;
 
   for (const record of history) {
-    const myEntry = record.players.find((p) => p.isMe);
-    if (!myEntry) continue;
-    for (const hand of myEntry.hands) {
-      totalHands++;
-      if (
-        hand.result === 'PLAYER_WIN' ||
-        hand.result === 'PLAYER_BLACKJACK' ||
-        hand.result === 'PLAYER_BLACKJACK_SUITED'
-      ) {
-        wins++;
-      } else if (hand.result === 'DEALER_WIN' || hand.result === 'DEALER_BLACKJACK') {
-        losses++;
-      } else if (hand.result === 'PUSH_22') {
-        push22s++;
-      } else {
-        pushes++;
+    const sources = hasPersonalHands ? record.players.filter((p) => p.isMe) : record.players;
+    for (const entry of sources) {
+      totalPayout += entry.totalPayout;
+      for (const hand of entry.hands) {
+        totalHands++;
+        if (
+          hand.result === 'PLAYER_WIN' ||
+          hand.result === 'PLAYER_BLACKJACK' ||
+          hand.result === 'PLAYER_BLACKJACK_SUITED'
+        ) {
+          wins++;
+        } else if (hand.result === 'DEALER_WIN' || hand.result === 'DEALER_BLACKJACK') {
+          losses++;
+        } else if (hand.result === 'PUSH_22') {
+          push22s++;
+        } else {
+          pushes++;
+        }
       }
     }
   }
 
   return (
     <div className="mb-4">
-      <div className="text-cream/25 text-[9px] uppercase tracking-wider mb-1.5">Your Stats</div>
+      <div className="text-cream/25 text-[9px] uppercase tracking-wider mb-1.5">{modeLabel}</div>
       <div className="grid grid-cols-3 gap-2">
         <MiniStat label="Hands" value={totalHands.toString()} />
         <MiniStat label="Wins" value={wins.toString()} color="text-casino-green" />
@@ -229,14 +233,19 @@ function MiniStat({
   );
 }
 
-// ─── Round Card (shows dealer + all players) ──────────────────────────────────
+// â”€â”€â”€ Round Card (shows dealer + all players) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function RoundCard({ hand, index }: { hand: HandRecord; index: number }) {
+  const myEntry = hand.players.find((p) => p.isMe);
+  const tablePayout = hand.players.reduce((sum, p) => sum + p.totalPayout, 0);
+  const rightLabel = myEntry ? `You: ${payoutStr(hand.myPayout)}` : `Table: ${payoutStr(tablePayout)}`;
+  const borderResult = myEntry ? hand.myResult : 'TABLE_VIEW';
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      className={`rounded-xl border bg-charcoal-light/50 overflow-hidden ${roundBorderColor(hand.myResult)}`}
+      className={`rounded-xl border bg-charcoal-light/50 overflow-hidden ${roundBorderColor(borderResult)}`}
     >
       {/* Round header */}
       <div className="flex items-center justify-between px-3 py-2 bg-navy/40 border-b border-white/5">
@@ -244,8 +253,8 @@ function RoundCard({ hand, index }: { hand: HandRecord; index: number }) {
           <span className="text-cream/40 text-[10px] font-mono font-bold">Round #{index}</span>
           <span className="text-cream/20 text-[10px]">{timeStr(hand.timestamp)}</span>
         </div>
-        <span className={`text-[10px] font-bold ${resultColor(hand.myResult)}`}>
-          You: {payoutStr(hand.myPayout)}
+        <span className={`text-[10px] font-bold ${resultColor(borderResult)}`}>
+          {rightLabel}
         </span>
       </div>
 
@@ -272,7 +281,7 @@ function RoundCard({ hand, index }: { hand: HandRecord; index: number }) {
   );
 }
 
-// ─── Player Row (supports multi-hand) ─────────────────────────────────────────
+// â”€â”€â”€ Player Row (supports multi-hand) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function PlayerRow({ player }: { player: PlayerHandEntry }) {
   const isMultiHand = player.hands.length > 1;
@@ -296,7 +305,7 @@ function PlayerRow({ player }: { player: PlayerHandEntry }) {
           )}
           {isMultiHand && (
             <span className="text-[8px] text-cream/30 shrink-0">
-              ×{player.hands.length}
+              x{player.hands.length}
             </span>
           )}
         </div>
@@ -325,7 +334,7 @@ function PlayerRow({ player }: { player: PlayerHandEntry }) {
   );
 }
 
-// ─── Action Badge Colors ─────────────────────────────────────────────────────
+// â”€â”€â”€ Action Badge Colors â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function actionBadge(type: string): { bg: string; text: string } {
   switch (type) {
@@ -340,7 +349,7 @@ function actionBadge(type: string): { bg: string; text: string } {
   }
 }
 
-// ─── Build Action Steps ──────────────────────────────────────────────────────
+// â”€â”€â”€ Build Action Steps â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface ActionStep {
   label: string;        // e.g. "DEAL", "HIT", "DBL"
@@ -410,7 +419,7 @@ function buildActionSteps(hand: PlayerHandEntryHand): ActionStep[] {
   return steps;
 }
 
-// ─── Single Hand Row (with action timeline) ─────────────────────────────────
+// â”€â”€â”€ Single Hand Row (with action timeline) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function HandRow({ hand, index, showLabel }: { hand: PlayerHandEntryHand; index: number; showLabel: boolean }) {
   const steps = buildActionSteps(hand);
@@ -484,3 +493,4 @@ function HandRow({ hand, index, showLabel }: { hand: PlayerHandEntryHand; index:
     </div>
   );
 }
+

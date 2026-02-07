@@ -18,12 +18,12 @@ export default function Card({ card, index, isWinner, isBust, delay = 0 }: CardP
 
   return (
     <motion.div
-      className={`relative w-[70px] h-[100px] sm:w-[80px] sm:h-[115px] md:w-[90px] md:h-[130px] rounded-lg select-none
+      className={`relative w-[62px] h-[90px] sm:w-[72px] sm:h-[104px] md:w-[82px] md:h-[118px] lg:w-[90px] lg:h-[130px] rounded-lg select-none
         ${isWinner ? 'glow-gold' : ''} ${isBust ? 'bust-tint' : ''}
       `}
       style={{
         perspective: '600px',
-        marginLeft: index > 0 ? '-20px' : '0',
+        marginLeft: index > 0 ? '-16px' : '0',
         zIndex: index,
       }}
       initial={{ x: 200, y: -100, rotate: 15, opacity: 0 }}

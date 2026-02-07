@@ -28,6 +28,7 @@ export default function RoomLobby() {
   const isHost = myPlayerId === tableState.hostId;
   const canChooseDealer = isHost && tableState.phase === 'LOBBY';
   const players = tableState.players.filter((p) => p.connected);
+  const spectators = (tableState.spectators ?? []).filter((s) => s.connected);
 
   // Build the set of active denominations (from server state)
   const activeSet = new Set(chipDenominations);
@@ -43,7 +44,13 @@ export default function RoomLobby() {
   };
 
   return (
-    <div className="min-h-screen bg-navy flex flex-col items-center justify-center p-4">
+    <div
+      className="min-h-dvh bg-navy flex flex-col items-center justify-center px-4 py-4"
+      style={{
+        paddingTop: 'calc(1rem + var(--safe-top))',
+        paddingBottom: 'calc(1rem + var(--safe-bottom))',
+      }}
+    >
       {/* Title */}
       <motion.div
         className="text-center mb-8"
@@ -56,13 +63,13 @@ export default function RoomLobby() {
 
       {/* Room Card */}
       <motion.div
-        className="w-full max-w-md bg-charcoal rounded-2xl border border-charcoal-lighter shadow-2xl overflow-hidden"
+        className="w-full max-w-3xl bg-charcoal rounded-2xl border border-charcoal-lighter shadow-2xl overflow-hidden"
         initial={{ y: 20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ delay: 0.1 }}
       >
         {/* Room Code Banner */}
-        <div className="bg-gradient-to-b from-gold/10 to-transparent border-b border-charcoal-lighter px-6 py-4 flex items-center justify-between">
+        <div className="bg-gradient-to-b from-gold/10 to-transparent border-b border-charcoal-lighter px-4 sm:px-6 py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
           <div>
             <span className="text-cream/40 text-xs uppercase tracking-wider">Room Code</span>
             <div className="text-gold font-mono text-3xl font-bold tracking-[0.2em]">
@@ -76,7 +83,7 @@ export default function RoomLobby() {
         </div>
 
         {/* Player List */}
-        <div className="p-6">
+        <div className="p-4 sm:p-6">
           <h3 className="text-cream/50 text-xs uppercase tracking-wider mb-3">At the Table</h3>
           <div className="space-y-2">
             {tableState.players.map((player) => {
@@ -86,7 +93,7 @@ export default function RoomLobby() {
               return (
                 <motion.div
                   key={player.id}
-                  className={`flex items-center justify-between px-4 py-3 rounded-lg
+                className={`flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-4 py-3 rounded-lg
                     ${player.id === myPlayerId
                       ? 'bg-gold/10 border border-gold/30'
                       : 'bg-charcoal-light border border-charcoal-lighter'
@@ -96,7 +103,7 @@ export default function RoomLobby() {
                   initial={{ x: -20, opacity: 0 }}
                   animate={{ x: 0, opacity: player.connected ? 1 : 0.4 }}
                 >
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
                   {/* Avatar Circle */}
                   <div
                     className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold
@@ -123,7 +130,7 @@ export default function RoomLobby() {
                     )}
                   </div>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-cream/30 text-xs font-mono">${player.buyIn.toLocaleString()}</span>
                     <div className={`text-xs ${
                       !player.connected ? 'text-cream/30' :
@@ -167,7 +174,28 @@ export default function RoomLobby() {
             <p className="text-cream/30 text-xs">
               Share the room code <span className="text-gold font-mono font-bold">{tableState.roomCode}</span> with friends to join
             </p>
+            {spectators.length > 0 && (
+              <p className="text-cream/25 text-[11px] mt-1">
+                {spectators.length} spectator{spectators.length !== 1 ? 's' : ''} watching
+              </p>
+            )}
           </div>
+
+          {spectators.length > 0 && (
+            <div className="mt-4">
+              <h4 className="text-cream/45 text-[10px] uppercase tracking-wider mb-2 text-center">Spectators</h4>
+              <div className="flex flex-wrap gap-1.5 justify-center">
+                {spectators.map((spectator) => (
+                  <span
+                    key={spectator.id}
+                    className="px-2 py-1 rounded-full bg-charcoal-lighter/70 text-cream/60 text-[11px]"
+                  >
+                    {spectator.name}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Chip Denomination Settings (Host Only) */}
           {isHost && (
@@ -273,10 +301,10 @@ export default function RoomLobby() {
           )}
 
           {/* Buttons */}
-          <div className="flex gap-2 mt-6">
+          <div className="grid grid-cols-2 sm:flex gap-2 mt-6">
             <motion.button
               onClick={leaveRoom}
-              className="flex-1 py-3 rounded-lg font-bold text-sm uppercase tracking-wider
+              className="col-span-1 sm:flex-1 py-3 rounded-lg font-bold text-sm uppercase tracking-wider
                 bg-charcoal-lighter text-cream/60 hover:text-cream hover:bg-charcoal-light cursor-pointer transition-colors"
               whileTap={{ scale: 0.98 }}
             >
@@ -285,7 +313,7 @@ export default function RoomLobby() {
 
             <motion.button
               onClick={toggleRules}
-              className="py-3 px-4 rounded-lg text-sm uppercase tracking-wider
+              className="col-span-1 py-3 px-4 rounded-lg text-sm uppercase tracking-wider
                 bg-charcoal-lighter text-cream/60 hover:text-cream hover:bg-charcoal-light cursor-pointer transition-colors"
               whileTap={{ scale: 0.98 }}
             >
@@ -294,7 +322,7 @@ export default function RoomLobby() {
 
             <motion.button
               onClick={toggleStrategy}
-              className="py-3 px-4 rounded-lg text-sm uppercase tracking-wider
+              className="col-span-1 py-3 px-4 rounded-lg text-sm uppercase tracking-wider
                 bg-charcoal-lighter text-cream/60 hover:text-cream hover:bg-charcoal-light cursor-pointer transition-colors"
               whileTap={{ scale: 0.98 }}
             >
@@ -303,7 +331,7 @@ export default function RoomLobby() {
 
             <motion.button
               onClick={toggleChat}
-              className="relative py-3 px-4 rounded-lg text-sm uppercase tracking-wider lg:hidden
+              className="relative col-span-1 py-3 px-4 rounded-lg text-sm uppercase tracking-wider lg:hidden
                 bg-charcoal-lighter text-cream/60 hover:text-cream hover:bg-charcoal-light cursor-pointer transition-colors"
               whileTap={{ scale: 0.98 }}
             >
@@ -319,7 +347,7 @@ export default function RoomLobby() {
               <motion.button
                 onClick={startRound}
                 disabled={players.length < 1}
-                className={`flex-1 py-3 rounded-lg font-bold text-sm uppercase tracking-wider transition-all
+                className={`col-span-2 sm:flex-1 py-3 rounded-lg font-bold text-sm uppercase tracking-wider transition-all
                   ${players.length >= 1
                     ? 'bg-gradient-to-b from-gold to-gold-dark text-charcoal hover:from-gold-light cursor-pointer shadow-lg'
                     : 'bg-charcoal-lighter text-cream/30 cursor-not-allowed'
@@ -332,7 +360,7 @@ export default function RoomLobby() {
             )}
 
             {!isHost && (
-              <div className="flex-1 py-3 rounded-lg text-sm text-center text-cream/40">
+              <div className="col-span-2 sm:flex-1 py-3 rounded-lg text-sm text-center text-cream/40">
                 Waiting for host to start...
               </div>
             )}

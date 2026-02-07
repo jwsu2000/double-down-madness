@@ -23,15 +23,39 @@
   box-sizing: border-box;
 }
 
+/* Mobile viewport + safe-area helpers */
+:root {
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+}
+
 html, body, #root {
   margin: 0;
   padding: 0;
   width: 100%;
   min-height: 100vh;
+  min-height: 100dvh;
   font-family: system-ui, -apple-system, sans-serif;
   background-color: var(--color-navy);
   color: var(--color-cream);
   overflow-x: hidden;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  overscroll-behavior-y: contain;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button,
+[role='button'],
+input,
+select,
+textarea {
+  touch-action: manipulation;
 }
 
 /* Card suit colors */
@@ -60,3 +84,21 @@ html, body, #root {
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: var(--color-charcoal); }
 ::-webkit-scrollbar-thumb { background: var(--color-charcoal-lighter); border-radius: 3px; }
+
+/* Hide horizontal strips used for compact control rows */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Prevent iOS from zooming the viewport when focusing form inputs */
+@media (max-width: 768px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}

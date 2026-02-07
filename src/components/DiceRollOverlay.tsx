@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '../hooks/useGameState';
+import { useSound } from '../hooks/useSound';
 
 // ─── Dice Face SVG ───────────────────────────────────────────────────────────
 
@@ -43,6 +44,7 @@ const HIGHLIGHT_DURATION = 1800; // How long the selected player glows
 export default function DiceRollOverlay() {
   const diceRoll = useGameStore((s) => s.diceRoll);
   const myPlayerId = useGameStore((s) => s.myPlayerId);
+  const { play } = useSound();
 
   const [phase, setPhase] = useState<'idle' | 'tumbling' | 'landed' | 'result' | 'done'>('idle');
   const [tumbleFaces, setTumbleFaces] = useState<[number, number]>([1, 1]);
@@ -67,6 +69,7 @@ export default function DiceRollOverlay() {
 
     // Rapidly change dice faces
     intervalRef.current = window.setInterval(() => {
+      play('flip');
       setTumbleFaces([
         Math.floor(Math.random() * 6) + 1,
         Math.floor(Math.random() * 6) + 1,
@@ -79,6 +82,7 @@ export default function DiceRollOverlay() {
         clearInterval(intervalRef.current);
         intervalRef.current = null;
       }
+      play('chip');
       setTumbleFaces(diceRoll.dice);
       setPhase('landed');
     }, TUMBLE_DURATION);
@@ -86,6 +90,7 @@ export default function DiceRollOverlay() {
 
     // Show result after a pause
     const t2 = window.setTimeout(() => {
+      play('win');
       setPhase('result');
     }, TUMBLE_DURATION + RESULT_PAUSE);
     timeoutRef.current.push(t2);
@@ -105,7 +110,7 @@ export default function DiceRollOverlay() {
       timeoutRef.current.forEach(clearTimeout);
       timeoutRef.current = [];
     };
-  }, [diceRoll]);
+  }, [diceRoll, play]);
 
   const isVisible = phase !== 'idle' && phase !== 'done';
 

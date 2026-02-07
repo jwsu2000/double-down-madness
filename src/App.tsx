@@ -87,7 +87,7 @@ export default function App() {
   // In the room lobby — show player list + start button
   if (tableState.phase === 'LOBBY') {
     return (
-      <div>
+      <div className="min-h-dvh">
         <RoomLobby />
         <RulesDrawer />
         <ProvablyFairDrawer />
@@ -101,17 +101,17 @@ export default function App() {
   // Game in progress
   return (
     <DealAnimationProvider value={dealAnimation}>
-    <div className="min-h-screen flex flex-col bg-navy">
+    <div className="min-h-dvh flex flex-col bg-navy">
       <Header />
 
       <main className="flex-1 felt-bg relative flex flex-col">
         {/* Dealer Section */}
-        <div className="flex-1 flex items-end justify-center pb-2 min-h-[160px] sm:min-h-[200px]">
+        <div className="flex-1 flex items-end justify-center pb-2 min-h-[110px] sm:min-h-[190px]">
           <DealerArea />
         </div>
 
         {/* Felt Divider */}
-        <div className="w-full flex items-center px-8 py-1">
+        <div className="w-full flex items-center px-4 sm:px-8 py-1">
           <div className="flex-1 h-px bg-gradient-to-r from-transparent via-gold/30 to-transparent" />
           <div className="px-4 text-gold/30 text-[10px] uppercase tracking-[0.3em] font-[Georgia]">
             Double Down Madness
@@ -120,7 +120,7 @@ export default function App() {
         </div>
 
         {/* Player Section */}
-        <div className="flex-1 flex items-start justify-center pt-2 min-h-[160px] sm:min-h-[200px]">
+        <div className="flex-1 flex items-start justify-center pt-2 min-h-[120px] sm:min-h-[190px]">
           <PlayerArea />
         </div>
 
@@ -133,13 +133,13 @@ export default function App() {
       </div>
 
       {/* Bet Area */}
-      <div className="bg-charcoal border-t border-charcoal-lighter">
+      <div className="bg-charcoal border-t border-charcoal-lighter pb-[var(--safe-bottom)]">
         <BetArea />
       </div>
 
       {/* Keyboard hints */}
       {phase === 'BETTING' && (
-        <div className="bg-charcoal text-center py-1">
+        <div className="hidden sm:block bg-charcoal text-center py-1">
           <span className="text-cream/20 text-[10px]">
             Press SPACE to place bet &bull; H = Hit &bull; S = Stand &bull; D = Double
           </span>
