@@ -153,8 +153,8 @@ export default function ChatDrawer() {
 
   return (
     <>
-      {/* Always-visible desktop chat rail (separate from table area) */}
-      <div className="hidden lg:flex fixed right-3 top-[calc(var(--safe-top)+72px)] bottom-3 w-[300px] xl:w-[320px] z-30">
+      {/* Compact desktop chat docked bottom-left */}
+      <div className="hidden lg:flex fixed left-3 bottom-3 w-[280px] xl:w-[300px] h-[min(240px,34vh)] z-30">
         <ChatPanel className="h-full w-full rounded-2xl overflow-hidden backdrop-blur-md" />
       </div>
 
