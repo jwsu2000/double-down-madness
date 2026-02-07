@@ -44,7 +44,7 @@ function ChatPanel({ className = '', onClose, autoFocusInput = false }: ChatPane
   };
 
   return (
-    <div className={`bg-charcoal border-l border-charcoal-lighter flex flex-col shadow-2xl ${className}`}>
+    <div className={`bg-charcoal border border-charcoal-lighter flex flex-col shadow-2xl ${className}`}>
       <div className="flex items-center justify-between px-5 py-4 border-b border-charcoal-lighter">
         <div className="flex items-center gap-2">
           <svg className="w-5 h-5 text-gold" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -153,9 +153,9 @@ export default function ChatDrawer() {
 
   return (
     <>
-      {/* Always-visible desktop sidebar */}
-      <div className="hidden lg:flex fixed right-0 top-0 h-screen w-[380px] z-30">
-        <ChatPanel className="h-full w-full" />
+      {/* Always-visible compact desktop chat */}
+      <div className="hidden lg:flex fixed right-4 bottom-4 w-[320px] h-[300px] z-30">
+        <ChatPanel className="h-full w-full rounded-2xl overflow-hidden bg-charcoal/95 backdrop-blur-sm" />
       </div>
 
       {/* Mobile drawer */}

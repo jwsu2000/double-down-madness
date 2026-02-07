@@ -11,6 +11,7 @@ export default function LedgerDrawer() {
   const myPlayerId = useGameStore((s) => s.myPlayerId);
   const departedPlayers = useGameStore((s) => s.departedPlayers);
   const addStack = useGameStore((s) => s.addStack);
+  const respondBuyInRequest = useGameStore((s) => s.respondBuyInRequest);
   const transferHost = useGameStore((s) => s.transferHost);
   const [topUpAmount, setTopUpAmount] = useState(100);
   const [inviteStatus, setInviteStatus] = useState<'idle' | 'copied' | 'error'>('idle');
@@ -23,6 +24,7 @@ export default function LedgerDrawer() {
   const canTransferOwnership = isHost && tableState?.phase !== 'LOBBY';
   const normalizedTopUpAmount = Math.max(0, Math.trunc(topUpAmount));
   const canSubmitTopUp = canTopUpStacks && normalizedTopUpAmount > 0;
+  const buyInRequests = tableState?.buyInRequests ?? [];
   const roomCode = tableState?.roomCode ?? '';
   const shareUrl = typeof window !== 'undefined' ? window.location.origin : '';
   const inviteMessage = [
@@ -156,6 +158,60 @@ export default function LedgerDrawer() {
                           text-cream text-sm disabled:opacity-50"
                       />
                     </div>
+                  </div>
+                </div>
+              )}
+
+              {isHost && buyInRequests.length > 0 && (
+                <div className="mb-4 p-3 rounded-lg border border-charcoal-lighter bg-navy/40">
+                  <div className="flex items-center justify-between">
+                    <span className="text-cream/60 text-xs uppercase tracking-wider font-medium">
+                      Buy-In Requests
+                    </span>
+                    <span className="text-[10px] text-cream/35">
+                      {buyInRequests.length} pending
+                    </span>
+                  </div>
+                  <div className="mt-2 space-y-2">
+                    {buyInRequests.map((request) => (
+                      <div
+                        key={request.playerId}
+                        className="flex items-center justify-between gap-2 rounded-md border border-charcoal-lighter/70 bg-charcoal-light/40 px-2 py-2"
+                      >
+                        <div className="min-w-0">
+                          <div className="text-cream text-xs font-medium truncate">
+                            {request.playerName}
+                          </div>
+                          <div className="text-gold/80 text-xs font-mono">
+                            ${request.amount.toLocaleString()}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            onClick={() => respondBuyInRequest(request.playerId, false)}
+                            disabled={!canTopUpStacks}
+                            className={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider transition-colors ${
+                              canTopUpStacks
+                                ? 'bg-charcoal-lighter text-cream/70 hover:text-cream hover:bg-charcoal-light'
+                                : 'bg-charcoal-lighter text-cream/20 cursor-not-allowed'
+                            }`}
+                          >
+                            Deny
+                          </button>
+                          <button
+                            onClick={() => respondBuyInRequest(request.playerId, true)}
+                            disabled={!canTopUpStacks}
+                            className={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider transition-colors ${
+                              canTopUpStacks
+                                ? 'bg-casino-green/25 text-casino-green hover:bg-casino-green/35'
+                                : 'bg-charcoal-lighter text-cream/20 cursor-not-allowed'
+                            }`}
+                          >
+                            Approve
+                          </button>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}

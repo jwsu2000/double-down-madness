@@ -330,6 +330,32 @@ io.on('connection', (socket) => {
     broadcastState(ctx.roomCode);
   });
 
+  socket.on('request_buy_in', ({ amount }) => {
+    const ctx = roomManager.getContextForSocket(socket.id);
+    if (!ctx) return;
+
+    const ok = ctx.room.table.requestBuyIn(ctx.playerId, Math.trunc(amount));
+    if (!ok) {
+      socket.emit('error', { message: 'Cannot request buy-in right now' });
+      return;
+    }
+
+    broadcastState(ctx.roomCode);
+  });
+
+  socket.on('respond_buy_in_request', ({ playerId, approve }) => {
+    const ctx = roomManager.getContextForSocket(socket.id);
+    if (!ctx) return;
+
+    const ok = ctx.room.table.respondBuyInRequest(ctx.playerId, playerId, !!approve);
+    if (!ok) {
+      socket.emit('error', { message: 'Cannot process buy-in request' });
+      return;
+    }
+
+    broadcastState(ctx.roomCode);
+  });
+
   // ─── Set Chip Denominations (Host Only) ──────────────────────────
 
   socket.on('transfer_host', ({ playerId }) => {

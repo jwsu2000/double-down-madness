@@ -1,8 +1,8 @@
-// ─── Bet Area — Multiplayer Betting Controls (Multi-Hand) ───────────────────────
-
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore, selectMyPlayer, selectPhase, selectMyIsAway } from '../hooks/useGameState';
 import { useSound } from '../hooks/useSound';
+import { MAX_BUY_IN } from '../engine/rules';
 import { DEALER_EMOTE_OPTIONS } from '../shared/protocol';
 import ChipSelector from './ChipSelector';
 import BalanceChipStack from './BalanceChipStack';
@@ -19,42 +19,42 @@ export default function BetArea() {
   const setSideBetInput = useGameStore((s) => s.setSideBetInput);
   const setNumHands = useGameStore((s) => s.setNumHands);
   const placeBet = useGameStore((s) => s.placeBet);
+  const requestBuyIn = useGameStore((s) => s.requestBuyIn);
   const sendDealerEmote = useGameStore((s) => s.sendDealerEmote);
   const isAway = useGameStore(selectMyIsAway);
   const toggleAway = useGameStore((s) => s.toggleAway);
+  const [buyInRequestAmount, setBuyInRequestAmount] = useState(1000);
   const { play } = useSound();
 
   if (!tableState || !myPlayer) return null;
 
   const isBetting = phase === 'BETTING';
   const isDealer = myPlayer.id === tableState.buttonPlayerId;
+  const isHost = myPlayer.id === tableState.hostId;
   const canDealerEmote = isDealer && (phase === 'BETTING' || phase === 'INSURANCE_OFFERED' || phase === 'PLAYER_TURN');
   const hasBet = myPlayer.hasBet;
   const balance = myPlayer.balance;
   const totalCost = betInput * numHandsInput + sideBetInput;
   const canDeal = isBetting && !isDealer && !hasBet && betInput > 0 && totalCost <= balance && !isAway;
+  const myBuyInRequest = tableState.buyInRequests.find((r) => r.playerId === myPlayer.id);
+  const normalizedBuyInRequestAmount = Math.max(1, Math.min(MAX_BUY_IN, Math.trunc(buyInRequestAmount)));
+  const canRequestBuyIn = isBetting && !isDealer && !isHost && !hasBet && !isAway && balance <= 0 && !myBuyInRequest;
 
-  // Show who has bet / is away
   const bettingStatus = tableState.players.filter(
     (p) => p.connected && p.id !== tableState.buttonPlayerId,
   );
 
-  // Max hands the player can afford
   const maxHands = betInput > 0 ? Math.min(5, Math.floor((balance - sideBetInput) / betInput)) : 1;
 
-  // Keep dealer emote controls available while players are making decisions.
   if (!isBetting && !canDealerEmote) return null;
 
   return (
     <div className="flex items-start gap-4 sm:gap-6 p-4 justify-center">
-      {/* Balance Chip Stack */}
       <div className="hidden sm:flex flex-col items-center pt-1">
         <BalanceChipStack />
       </div>
 
-      {/* Main Controls */}
       <div className="flex flex-col items-center gap-3 flex-1 max-w-lg">
-        {/* Away state */}
         {canDealerEmote ? (
           <div className="flex flex-col items-center gap-3 py-4">
             <div className="text-gold text-lg font-bold">You are the house dealer</div>
@@ -128,12 +128,64 @@ export default function BetArea() {
               ))}
             </div>
           </div>
+        ) : balance <= 0 ? (
+          <div className="flex flex-col items-center gap-3 py-4">
+            <div className="text-casino-red text-lg font-bold">Out of chips</div>
+            <p className="text-cream/45 text-sm text-center max-w-xs">
+              Request an additional buy-in and wait for the owner to approve it.
+            </p>
+            {isHost ? (
+              <p className="text-cream/35 text-xs text-center max-w-xs">
+                As owner, top up your stack from the ledger.
+              </p>
+            ) : myBuyInRequest ? (
+              <div className="text-gold/80 text-sm font-medium">
+                Request pending: ${myBuyInRequest.amount.toLocaleString()}
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <label className="text-cream/45 text-xs uppercase tracking-wider">Amount</label>
+                <div className="relative">
+                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gold text-xs">$</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={MAX_BUY_IN}
+                    step={1}
+                    value={normalizedBuyInRequestAmount || ''}
+                    onChange={(e) => {
+                      const next = parseInt(e.target.value, 10);
+                      setBuyInRequestAmount(
+                        Number.isFinite(next) ? Math.max(1, Math.min(MAX_BUY_IN, next)) : 1,
+                      );
+                    }}
+                    className="w-28 bg-charcoal-light border border-charcoal-lighter rounded px-5 py-1.5
+                      text-cream text-sm"
+                  />
+                </div>
+                <motion.button
+                  onClick={() => {
+                    requestBuyIn(normalizedBuyInRequestAmount);
+                    play('chip');
+                  }}
+                  disabled={!canRequestBuyIn}
+                  className={`px-4 py-2 rounded-lg font-bold text-xs uppercase tracking-wider transition-all ${
+                    canRequestBuyIn
+                      ? 'bg-gradient-to-b from-blue-600 to-blue-800 text-white hover:from-blue-500 hover:to-blue-700 cursor-pointer'
+                      : 'bg-charcoal-lighter text-cream/30 cursor-not-allowed'
+                  }`}
+                  whileHover={canRequestBuyIn ? { scale: 1.05 } : {}}
+                  whileTap={canRequestBuyIn ? { scale: 0.95 } : {}}
+                >
+                  Request Buy-In
+                </motion.button>
+              </div>
+            )}
+          </div>
         ) : (
           <>
-            {/* Chip selector */}
             <ChipSelector />
 
-            {/* Bet + Hand Count + Side Bet Display */}
             <div className="flex items-center gap-4 sm:gap-6 flex-wrap justify-center">
               <div className="flex flex-col items-center">
                 <span className="text-cream/50 text-xs uppercase tracking-wider mb-1">Per Hand</span>
@@ -150,7 +202,6 @@ export default function BetArea() {
                 </AnimatePresence>
               </div>
 
-              {/* Hand Count Selector */}
               <div className="flex flex-col items-center">
                 <span className="text-cream/50 text-xs uppercase tracking-wider mb-1">Hands</span>
                 <div className="flex items-center gap-1.5">
@@ -175,7 +226,6 @@ export default function BetArea() {
                 </div>
               </div>
 
-              {/* Side Bet */}
               <div className="flex flex-col items-center">
                 <span className="text-cream/50 text-xs uppercase tracking-wider mb-1">Push 22 (11:1)</span>
                 <div className="flex items-center gap-2">
@@ -207,14 +257,12 @@ export default function BetArea() {
               </div>
             </div>
 
-            {/* Total Cost */}
             {numHandsInput > 1 && betInput > 0 && (
               <div className="text-cream/40 text-xs">
                 Total: ${totalCost.toLocaleString()}
               </div>
             )}
 
-            {/* Action Buttons */}
             <div className="flex gap-2 sm:gap-3 flex-wrap justify-center">
               <BetButton
                 onClick={() => { clearBet(); play('chip'); }}
@@ -249,7 +297,6 @@ export default function BetArea() {
         )}
       </div>
 
-      {/* Spacer */}
       <div className="hidden sm:block w-[48px]" />
     </div>
   );

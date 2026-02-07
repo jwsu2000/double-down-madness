@@ -31,6 +31,7 @@ import {
   deriveShoeOrder,
 } from '../src/engine/provablyFair';
 import type {
+  BuyInRequest,
   ClientTableState,
   TablePlayer,
   TableHand,
@@ -117,6 +118,7 @@ export class TableController {
 
   // Chip denominations (configurable by host)
   chipDenominations: number[] = [...DEFAULT_CHIP_DENOMINATIONS];
+  private buyInRequests = new Map<string, BuyInRequest>();
 
   private initialized = false;
 
@@ -144,7 +146,7 @@ export class TableController {
   addStack(hostPlayerId: string, targetPlayerId: string, amount: number): boolean {
     if (hostPlayerId !== this.hostId) return false;
     if (this.phase === 'LOBBY') return false;
-    if (!Number.isInteger(amount) || amount <= 0 || amount > 1_000_000) return false;
+    if (!Number.isInteger(amount) || amount <= 0 || amount > MAX_BUY_IN) return false;
 
     const target = this.players.get(targetPlayerId);
     if (!target || !target.connected) return false;
@@ -153,6 +155,45 @@ export class TableController {
     // Treat top-ups as additional buy-in so ledger P/L remains meaningful.
     target.balance += amount;
     target.buyIn += amount;
+    this.buyInRequests.delete(targetPlayerId);
+    return true;
+  }
+
+  requestBuyIn(playerId: string, amount: number): boolean {
+    if (this.phase === 'LOBBY') return false;
+    if (!Number.isInteger(amount) || amount <= 0 || amount > MAX_BUY_IN) return false;
+    if (playerId === this.hostId) return false;
+
+    const player = this.players.get(playerId);
+    if (!player || !player.connected) return false;
+    if (this.isHouseDealer(playerId)) return false;
+    if (player.balance > 0) return false;
+
+    this.buyInRequests.set(playerId, {
+      playerId,
+      playerName: player.name,
+      amount,
+      requestedAt: Date.now(),
+    });
+    return true;
+  }
+
+  respondBuyInRequest(hostPlayerId: string, playerId: string, approve: boolean): boolean {
+    if (hostPlayerId !== this.hostId) return false;
+
+    const request = this.buyInRequests.get(playerId);
+    if (!request) return false;
+
+    this.buyInRequests.delete(playerId);
+
+    if (!approve) return true;
+
+    const player = this.players.get(playerId);
+    if (!player || !player.connected) return false;
+    if (this.isHouseDealer(playerId)) return false;
+
+    player.balance += request.amount;
+    player.buyIn += request.amount;
     return true;
   }
 
@@ -240,6 +281,7 @@ export class TableController {
     this.players.delete(id);
     this.playerOrder = this.playerOrder.filter((pid) => pid !== id);
     this.readyPlayers.delete(id);
+    this.buyInRequests.delete(id);
 
     // Transfer host
     if (this.hostId === id && this.playerOrder.length > 0) {
@@ -270,6 +312,7 @@ export class TableController {
     if (player) {
       player.connected = connected;
       if (!connected) player.socketId = '';
+      if (!connected) this.buyInRequests.delete(id);
 
       // Auto-stand for disconnected players during their turn
       if (!connected && this.phase === 'PLAYER_TURN') {
@@ -937,6 +980,7 @@ export class TableController {
       roomCode: this.roomCode,
       phase: this.phase,
       players,
+      buyInRequests: Array.from(this.buyInRequests.values()),
       dealerCards: this.dealerCards.map((c) => ({ ...c })),
       activePlayerId,
       activeHandIndex: this.activeHandIndex,

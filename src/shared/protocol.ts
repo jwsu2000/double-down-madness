@@ -56,6 +56,13 @@ export interface PlayerSettlement {
   handResults: HandSettlement[];
 }
 
+export interface BuyInRequest {
+  playerId: string;
+  playerName: string;
+  amount: number;
+  requestedAt: number;
+}
+
 // ─── Provably Fair Data ──────────────────────────────────────────────────────
 
 export interface ProvablyFairInfo {
@@ -79,6 +86,7 @@ export interface ClientTableState {
   roomCode: string;
   phase: TablePhase;
   players: TablePlayer[];
+  buyInRequests: BuyInRequest[];
   dealerCards: Card[];
   activePlayerId: string | null;
   activeHandIndex: number;
@@ -159,6 +167,8 @@ export interface ClientToServerEvents {
   send_chat: (data: { text: string }) => void;
   send_dealer_emote: (data: { emote: DealerEmoteKind }) => void;
   add_stack: (data: { playerId: string; amount: number }) => void;
+  request_buy_in: (data: { amount: number }) => void;
+  respond_buy_in_request: (data: { playerId: string; approve: boolean }) => void;
   transfer_host: (data: { playerId: string }) => void;
   set_lobby_dealer: (data: { playerId: string }) => void;
   set_chip_denoms: (data: { denominations: number[] }) => void;

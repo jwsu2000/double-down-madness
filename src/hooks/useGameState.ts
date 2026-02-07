@@ -188,6 +188,8 @@ interface GameStore {
   sendChat: (text: string) => void;
   sendDealerEmote: (emote: DealerEmoteKind) => void;
   addStack: (playerId: string, amount: number) => void;
+  requestBuyIn: (amount: number) => void;
+  respondBuyInRequest: (playerId: string, approve: boolean) => void;
   transferHost: (playerId: string) => void;
   setLobbyDealer: (playerId: string) => void;
   setChipDenoms: (denominations: number[]) => void;
@@ -532,6 +534,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
   addStack: (playerId, amount) => {
     socket.emit('add_stack', { playerId, amount });
+  },
+  requestBuyIn: (amount) => {
+    socket.emit('request_buy_in', { amount });
+  },
+  respondBuyInRequest: (playerId, approve) => {
+    socket.emit('respond_buy_in_request', { playerId, approve });
   },
   transferHost: (playerId) => {
     socket.emit('transfer_host', { playerId });
