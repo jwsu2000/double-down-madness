@@ -194,6 +194,8 @@ interface GameStore {
   transferHost: (playerId: string) => void;
   setLobbyDealer: (playerId: string) => void;
   setChipDenoms: (denominations: number[]) => void;
+  setHouseBuyIn: (amount: number) => void;
+  addHouseStack: (amount: number) => void;
 }
 
 // ─── Default values ───────────────────────────────────────────────────────────
@@ -559,6 +561,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
   setChipDenoms: (denominations) => {
     socket.emit('set_chip_denoms', { denominations });
+  },
+  setHouseBuyIn: (amount) => {
+    socket.emit('set_house_buy_in', { amount });
+  },
+  addHouseStack: (amount) => {
+    socket.emit('add_house_stack', { amount });
   },
 }));
 

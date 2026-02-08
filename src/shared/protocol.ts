@@ -108,6 +108,10 @@ export interface ClientTableState {
   previousServerSeed?: string;
   provablyFair: ProvablyFairInfo;
   chipDenominations: number[];
+  houseBuyIn: number;
+  houseBalance: number;
+  houseReservedRisk: number;
+  houseAvailableRisk: number;
 }
 
 // ─── Dice Roll Event ─────────────────────────────────────────────────────────
@@ -180,6 +184,8 @@ export interface ClientToServerEvents {
   transfer_host: (data: { playerId: string }) => void;
   set_lobby_dealer: (data: { playerId: string }) => void;
   set_chip_denoms: (data: { denominations: number[] }) => void;
+  set_house_buy_in: (data: { amount: number }) => void;
+  add_house_stack: (data: { amount: number }) => void;
 }
 
 export interface ServerToClientEvents {

@@ -201,7 +201,7 @@ io.on('connection', (socket) => {
       normalizedHands,
     );
     if (!ok) {
-      socket.emit('error', { message: 'Invalid bet' });
+      socket.emit('error', { message: 'Invalid bet or house coverage limit reached' });
       return;
     }
 
@@ -242,7 +242,11 @@ io.on('connection', (socket) => {
       return;
     }
 
-    ctx.room.table.playerInsurance(ctx.playerId, take);
+    const ok = ctx.room.table.playerInsurance(ctx.playerId, take);
+    if (!ok) {
+      socket.emit('error', { message: 'Cannot take insurance right now' });
+      return;
+    }
 
     // Auto-resolve when all have decided
     if (ctx.room.table.allInsuranceDecided()) {
@@ -454,6 +458,40 @@ io.on('connection', (socket) => {
 
     broadcastState(ctx.roomCode);
     console.log(`[chips-set] ${ctx.roomCode} denoms -> [${ctx.room.table.chipDenominations}]`);
+  });
+
+  socket.on('set_house_buy_in', ({ amount }) => {
+    const ctx = roomManager.getContextForSocket(socket.id);
+    if (!ctx) return;
+    if (ctx.isSpectator) {
+      socket.emit('error', { message: 'Spectators cannot manage house bankroll' });
+      return;
+    }
+
+    const ok = ctx.room.table.setHouseBuyIn(ctx.playerId, Math.trunc(Number(amount)));
+    if (!ok) {
+      socket.emit('error', { message: 'Cannot set house buy-in right now' });
+      return;
+    }
+
+    broadcastState(ctx.roomCode);
+  });
+
+  socket.on('add_house_stack', ({ amount }) => {
+    const ctx = roomManager.getContextForSocket(socket.id);
+    if (!ctx) return;
+    if (ctx.isSpectator) {
+      socket.emit('error', { message: 'Spectators cannot manage house bankroll' });
+      return;
+    }
+
+    const ok = ctx.room.table.addHouseStack(ctx.playerId, Math.trunc(Number(amount)));
+    if (!ok) {
+      socket.emit('error', { message: 'Cannot add house stack right now' });
+      return;
+    }
+
+    broadcastState(ctx.roomCode);
   });
 
   // ─── Ready for Next Round ─────────────────────────────────────────

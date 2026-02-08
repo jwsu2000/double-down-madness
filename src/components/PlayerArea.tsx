@@ -200,7 +200,6 @@ export default function PlayerArea() {
                 const baseScale = isActiveHand ? 1.05 : 1;
                 const baseOpacity = isDone && !isWinner && showResults ? 0.7 : 1;
                 const hasLiveBlackjack =
-                  hand.doubleCount === 0 &&
                   hand.cards.length === 2 &&
                   hand.cards.every((c) => c.faceUp) &&
                   isBlackjack(hand.cards);

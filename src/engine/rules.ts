@@ -164,7 +164,7 @@ export function settleHand(
   const dealerHand = evaluateHand(dealerCards);
   const wager = totalWager(originalBet, doubleCount);
   const isTwoCardBlackjack = isBlackjack(playerCards);
-  const isStandardBlackjack = doubleCount === 0 && isTwoCardBlackjack;
+  const isBlackjackPayoutHand = isTwoCardBlackjack;
   let sideBetPayout = 0;
 
   // Side bet: pays 11:1 if dealer's hand totals exactly 22
@@ -207,10 +207,9 @@ export function settleHand(
     };
   }
 
-  // Player blackjack (Ace + 10-value in exactly 2 cards, NOT from a double)
-  // In DDM the player starts with 1 card; blackjack is only awarded when
-  // the 2nd card came from a hit, not a double (standard BJ convention).
-  if (isStandardBlackjack) {
+  // Player blackjack (Ace + 10-value in exactly 2 cards).
+  // Doubled two-card blackjacks are paid as blackjack per game rule.
+  if (isBlackjackPayoutHand) {
     if (isSuitedBlackjack(playerCards)) {
       return {
         result: 'PLAYER_BLACKJACK_SUITED',

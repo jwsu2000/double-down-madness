@@ -54,6 +54,8 @@ export default function BetArea() {
   const canUseEmotes = phase !== 'LOBBY';
   const hasBet = myPlayer.hasBet;
   const balance = myPlayer.balance;
+  const houseAvailable = tableState.houseAvailableRisk ?? 0;
+  const houseReserved = tableState.houseReservedRisk ?? 0;
   const totalCost = betInput * numHandsInput + sideBetInput;
   const canDeal = isBetting && !isDealer && !hasBet && betInput > 0 && totalCost <= balance && !isAway;
   const myBuyInRequest = tableState.buyInRequests.find((r) => r.playerId === myPlayer.id);
@@ -91,6 +93,21 @@ export default function BetArea() {
                   }}
                 />
               ))}
+            </div>
+          </div>
+        )}
+
+        {isBetting && (
+          <div className="w-full rounded-lg border border-charcoal-lighter bg-charcoal-light/55 px-3 py-2 text-center">
+            <span className="text-cream/45 text-[10px] uppercase tracking-[0.14em]">House Coverage</span>
+            <div className="text-xs mt-0.5">
+              <span className="text-casino-green font-mono font-semibold">
+                Available: ${houseAvailable.toLocaleString()}
+              </span>
+              <span className="text-cream/35 mx-2">•</span>
+              <span className="text-gold font-mono font-semibold">
+                Reserved: ${houseReserved.toLocaleString()}
+              </span>
             </div>
           </div>
         )}

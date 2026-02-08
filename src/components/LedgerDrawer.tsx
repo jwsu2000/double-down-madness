@@ -13,18 +13,28 @@ export default function LedgerDrawer() {
   const addStack = useGameStore((s) => s.addStack);
   const respondBuyInRequest = useGameStore((s) => s.respondBuyInRequest);
   const transferHost = useGameStore((s) => s.transferHost);
+  const setHouseBuyIn = useGameStore((s) => s.setHouseBuyIn);
+  const addHouseStack = useGameStore((s) => s.addHouseStack);
   const [topUpAmount, setTopUpAmount] = useState(100);
+  const [houseAmountInput, setHouseAmountInput] = useState(10000);
   const [inviteStatus, setInviteStatus] = useState<'idle' | 'copied' | 'error'>('idle');
 
   const dealerPlayerId = tableState?.buttonPlayerId ?? null;
   const activePlayers = (tableState?.players ?? []).filter((p) => p.id !== dealerPlayerId);
   const visibleDepartedPlayers = departedPlayers.filter((p) => !p.isDealer);
   const isHost = !!myPlayerId && myPlayerId === tableState?.hostId;
+  const isDealer = !!myPlayerId && myPlayerId === dealerPlayerId;
+  const canManageHouse = (isHost || isDealer) && (tableState?.phase === 'LOBBY' || tableState?.phase === 'BETTING');
   const canTopUpStacks = isHost && tableState?.phase !== 'LOBBY';
   const canTransferOwnership = isHost && tableState?.phase !== 'LOBBY';
   const normalizedTopUpAmount = Math.max(0, Math.trunc(topUpAmount));
+  const normalizedHouseAmount = Math.max(1, Math.trunc(houseAmountInput));
   const canSubmitTopUp = canTopUpStacks && normalizedTopUpAmount > 0;
   const buyInRequests = tableState?.buyInRequests ?? [];
+  const houseBuyIn = tableState?.houseBuyIn ?? 0;
+  const houseBalance = tableState?.houseBalance ?? 0;
+  const houseReserved = tableState?.houseReservedRisk ?? 0;
+  const houseAvailable = tableState?.houseAvailableRisk ?? 0;
   const roomCode = tableState?.roomCode ?? '';
   const shareUrl = typeof window !== 'undefined' ? window.location.origin : '';
   const inviteMessage = [
@@ -97,6 +107,64 @@ export default function LedgerDrawer() {
                     <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </button>
+              </div>
+
+              <div className="mb-4 p-3 rounded-lg border border-charcoal-lighter bg-navy/35">
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <div className="min-w-0">
+                    <p className="text-cream/65 text-xs uppercase tracking-wider font-medium">
+                      House Bankroll
+                    </p>
+                    <p className="text-cream/35 text-[11px] truncate">
+                      Caps total house losses to available coverage.
+                    </p>
+                  </div>
+                  <span className="text-[10px] text-cream/35">
+                    {isDealer ? 'You are dealer' : isHost ? 'You are host' : 'View only'}
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
+                  <MiniHouseStat label="Buy-in" value={houseBuyIn} tone="neutral" />
+                  <MiniHouseStat label="Stack" value={houseBalance} tone={houseBalance > 0 ? 'good' : 'bad'} />
+                  <MiniHouseStat label="Reserved" value={houseReserved} tone={houseReserved > 0 ? 'warn' : 'neutral'} />
+                  <MiniHouseStat label="Available" value={houseAvailable} tone={houseAvailable >= 0 ? 'good' : 'bad'} />
+                </div>
+                {canManageHouse && (
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <label className="text-cream/45 text-xs uppercase tracking-wider">Amount</label>
+                    <div className="relative">
+                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gold text-xs">$</span>
+                      <input
+                        type="number"
+                        min={1}
+                        step={1}
+                        value={normalizedHouseAmount || ''}
+                        onChange={(e) => {
+                          const next = parseInt(e.target.value, 10);
+                          setHouseAmountInput(Number.isFinite(next) ? Math.max(1, next) : 1);
+                        }}
+                        className="w-32 bg-charcoal-light border border-charcoal-lighter rounded px-5 py-1.5
+                          text-cream text-sm"
+                      />
+                    </div>
+                    <button
+                      onClick={() => setHouseBuyIn(normalizedHouseAmount)}
+                      className="px-3 py-1.5 rounded text-[10px] font-bold uppercase tracking-wider transition-colors
+                        bg-blue-500/20 text-blue-200 hover:bg-blue-500/30"
+                      title="Set house bankroll exactly (only before bets are placed)"
+                    >
+                      Set Buy-In
+                    </button>
+                    <button
+                      onClick={() => addHouseStack(normalizedHouseAmount)}
+                      className="px-3 py-1.5 rounded text-[10px] font-bold uppercase tracking-wider transition-colors
+                        bg-gold/20 text-gold hover:bg-gold/30"
+                      title="Add to house bankroll"
+                    >
+                      Add Stack
+                    </button>
+                  </div>
+                )}
               </div>
 
               <div className="mb-4 p-3 rounded-lg border border-charcoal-lighter bg-navy/35">
@@ -411,6 +479,32 @@ function PLCell({ value, dimmed }: { value: number; dimmed?: boolean }) {
   return (
     <div className={`text-right text-sm font-mono font-bold ${color}`}>
       {value > 0 ? '+' : ''}${value.toLocaleString()}
+    </div>
+  );
+}
+
+function MiniHouseStat({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: number;
+  tone: 'good' | 'bad' | 'warn' | 'neutral';
+}) {
+  const toneClass =
+    tone === 'good'
+      ? 'text-casino-green'
+      : tone === 'bad'
+        ? 'text-casino-red'
+        : tone === 'warn'
+          ? 'text-gold'
+          : 'text-cream/80';
+
+  return (
+    <div className="rounded-md border border-charcoal-lighter/70 bg-charcoal-light/35 px-2 py-1.5">
+      <div className="text-cream/35 uppercase tracking-wider text-[9px]">{label}</div>
+      <div className={`font-mono font-bold ${toneClass}`}>${value.toLocaleString()}</div>
     </div>
   );
 }

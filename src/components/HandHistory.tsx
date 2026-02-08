@@ -404,8 +404,8 @@ function buildActionSteps(hand: PlayerHandEntryHand): ActionStep[] {
   const finalEval = evaluateHand(cards);
   if (finalEval.isBust) {
     steps.push({ label: 'BUST', total: finalEval.best, isSoft: false, isBust: true });
-  } else if (finalEval.best === 21 && cards.length === 2 && hand.actions.length === 0) {
-    // Natural blackjack (hit to 21 with 2 cards, no doubles)
+  } else if (finalEval.best === 21 && cards.length === 2 && hand.actions.length <= 1) {
+    // Two-card blackjack (from first hit or first double)
     // Already shown in the last card step
   } else if (
     !finalEval.isBust &&

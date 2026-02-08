@@ -4,6 +4,9 @@
 import {
   type Card,
   evaluateHand,
+  isBlackjack,
+  isSuitedBlackjack,
+  isTenValue,
   SUITS,
   RANKS,
   CUT_CARD_POSITION,
@@ -128,6 +131,8 @@ export class TableController {
   // Chip denominations (configurable by host)
   chipDenominations: number[] = [...DEFAULT_CHIP_DENOMINATIONS];
   private buyInRequests = new Map<string, BuyInRequest>();
+  houseBuyIn = STARTING_BALANCE;
+  houseBalance = STARTING_BALANCE;
 
   private initialized = false;
 
@@ -150,6 +155,105 @@ export class TableController {
     if (unique.length < 1) return false;
     this.chipDenominations = unique;
     return true;
+  }
+
+  private canManageHouseBankroll(playerId: string): boolean {
+    return playerId === this.hostId || playerId === this.buttonPlayerId;
+  }
+
+  setHouseBuyIn(playerId: string, amount: number): boolean {
+    if (!this.canManageHouseBankroll(playerId)) return false;
+    if (this.phase !== 'LOBBY' && this.phase !== 'BETTING') return false;
+    if (this.playerOrder.some((pid) => this.players.get(pid)?.hasBet)) return false;
+    if (!Number.isInteger(amount) || amount <= 0 || amount > MAX_BUY_IN) return false;
+    this.houseBuyIn = amount;
+    this.houseBalance = amount;
+    return true;
+  }
+
+  addHouseStack(playerId: string, amount: number): boolean {
+    if (!this.canManageHouseBankroll(playerId)) return false;
+    if (this.phase !== 'LOBBY' && this.phase !== 'BETTING') return false;
+    if (!Number.isInteger(amount) || amount <= 0 || amount > MAX_BUY_IN) return false;
+    this.houseBuyIn += amount;
+    this.houseBalance += amount;
+    return true;
+  }
+
+  private handCommittedRisk(hand: ServerHand): number {
+    const wager = totalWager(hand.originalBet, hand.doubleCount);
+    if (wager <= 0) return 0;
+
+    if (hand.cards.length === 0) {
+      // Pre-deal: a two-card suited blackjack is still possible.
+      return wager * 2;
+    }
+
+    const evalNow = evaluateHand(hand.cards);
+    if (evalNow.isBust) return 0;
+
+    // One-card starts that can still become a 2-card blackjack.
+    if (hand.cards.length === 1) {
+      const rank = hand.cards[0].rank;
+      if (rank === 'A' || isTenValue(rank)) {
+        return wager * 2;
+      }
+    }
+
+    if (hand.cards.length === 2 && isBlackjack(hand.cards)) {
+      if (isSuitedBlackjack(hand.cards)) return wager * 2;
+      return Math.floor(wager * 1.5);
+    }
+
+    // Non-blackjack hands can at most win 1:1 net.
+    return wager;
+  }
+
+  private playerCommittedRisk(player: ServerPlayer): number {
+    if (!player.hasBet) return 0;
+
+    const handRisk = player.hands.reduce(
+      (sum, hand) => sum + this.handCommittedRisk(hand),
+      0,
+    );
+    const sideBetRisk = player.sideBet > 0 ? player.sideBet * SIDE_BET_PAYOUT : 0;
+    const insuranceRisk =
+      player.insuranceTaken &&
+      player.insuranceBet > 0 &&
+      (this.phase === 'INSURANCE_OFFERED' || this.phase === 'PEEK_CHECK')
+        ? player.insuranceBet * 2
+        : 0;
+
+    return handRisk + sideBetRisk + insuranceRisk;
+  }
+
+  private handRiskAfterNextDouble(hand: ServerHand): number {
+    const doubledCount = hand.doubleCount + 1;
+    const wagerAfterDouble = totalWager(hand.originalBet, doubledCount);
+    if (wagerAfterDouble <= 0) return 0;
+
+    // The only time a doubled hand can still become a 2-card blackjack is when
+    // doubling from the initial single-card state.
+    if (hand.cards.length === 1) {
+      const rank = hand.cards[0].rank;
+      if (rank === 'A' || isTenValue(rank)) {
+        return wagerAfterDouble * 2;
+      }
+    }
+
+    return wagerAfterDouble;
+  }
+
+  private computeHouseReservedRisk(): number {
+    return this.playerOrder.reduce((sum, pid) => {
+      const player = this.players.get(pid);
+      if (!player || this.isHouseDealer(pid)) return sum;
+      return sum + this.playerCommittedRisk(player);
+    }, 0);
+  }
+
+  private getHouseAvailableRisk(): number {
+    return this.houseBalance - this.computeHouseReservedRisk();
   }
 
   addStack(hostPlayerId: string, targetPlayerId: string, amount: number): boolean {
@@ -476,6 +580,8 @@ export class TableController {
     if (!Number.isInteger(numHands) || numHands < 1 || numHands > 5) return false;
     const totalCost = amount * numHands + sideBet;
     if (!Number.isSafeInteger(totalCost) || totalCost > player.balance) return false;
+    const addedRisk = amount * numHands * 2 + sideBet * SIDE_BET_PAYOUT;
+    if (!Number.isSafeInteger(addedRisk) || addedRisk > this.getHouseAvailableRisk()) return false;
 
     player.currentBet = amount;
     player.sideBet = sideBet;
@@ -555,10 +661,15 @@ export class TableController {
         (sum, h) => sum + Math.floor(h.originalBet / 2),
         0,
       );
-      if (cost <= player.balance) {
+      const addedRisk = cost * 2;
+      if (cost <= player.balance && addedRisk <= this.getHouseAvailableRisk()) {
         player.insuranceTaken = true;
         player.insuranceBet = cost;
         player.balance -= cost;
+      } else if (cost > player.balance) {
+        return false;
+      } else {
+        return false;
       }
     }
     player.insuranceDecided = true;
@@ -629,6 +740,10 @@ export class TableController {
       case 'double': {
         if (!actions.double) return false;
         const wager = nextDoubleWager(hand.originalBet, hand.doubleCount);
+        const currentRisk = this.handCommittedRisk(hand);
+        const nextRisk = this.handRiskAfterNextDouble(hand);
+        const addedRisk = Math.max(0, nextRisk - currentRisk);
+        if (addedRisk > this.getHouseAvailableRisk()) return false;
         player.balance -= wager;
         const card = this.drawCard(true);
         hand.cards.push(card);
@@ -718,6 +833,7 @@ export class TableController {
   private settle(dealerHasBJ: boolean) {
     this.dealerCards = this.dealerCards.map((c) => ({ ...c, faceUp: true }));
     this.settlements = [];
+    let tableNetPayout = 0;
 
     for (const pid of this.playerOrder) {
       const player = this.players.get(pid);
@@ -861,7 +977,10 @@ export class TableController {
         sideBetPayout,
         handResults,
       });
+      tableNetPayout += totalNetPayout;
     }
+
+    this.houseBalance -= tableNetPayout;
 
     this.phase = 'SETTLEMENT';
   }
@@ -1047,6 +1166,8 @@ export class TableController {
         ? this.previousCardsDealt
         : undefined,
     };
+    const houseReservedRisk = this.computeHouseReservedRisk();
+    const houseAvailableRisk = this.houseBalance - houseReservedRisk;
 
     return {
       roomCode: this.roomCode,
@@ -1067,6 +1188,10 @@ export class TableController {
       previousServerSeed: this.provablyFair?.previousServerSeed,
       provablyFair,
       chipDenominations: [...this.chipDenominations],
+      houseBuyIn: this.houseBuyIn,
+      houseBalance: this.houseBalance,
+      houseReservedRisk,
+      houseAvailableRisk,
     };
   }
 }

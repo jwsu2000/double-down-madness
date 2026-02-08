@@ -166,7 +166,7 @@ export default function RulesDrawer() {
 
                 {/* Player Blackjack */}
                 <RuleSection title="Player Blackjack">
-                  <p>A blackjack is an Ace + a 10-value card in the player's <Highlight>first two cards</Highlight>. Since you start with one card, this is achieved by <Highlight>hitting</Highlight> on your first card. Doubled hands that result in Ace + 10 are treated as a regular 21, paying 1:1. A hand of 21 with 3+ cards also pays 1:1.</p>
+                  <p>A blackjack is an Ace + a 10-value card in the player's <Highlight>first two cards</Highlight>. Since you start with one card, this is achieved by <Highlight>hitting or doubling</Highlight> on your first card. Any 21 made with 3+ cards still pays 1:1.</p>
                 </RuleSection>
 
                 {/* Push 22 Side Bet */}
