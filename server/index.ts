@@ -74,8 +74,24 @@ function broadcastState(roomCode: string) {
   const room = roomManager.getRoom(roomCode);
   if (!room) return;
 
-  for (const [participantId, socketId] of room.participantToSocket) {
-    const state = room.table.getClientState(participantId);
+  const participants = [...room.participantToSocket.entries()];
+  if (participants.length === 0) return;
+
+  // Build one canonical snapshot per broadcast and only patch per-client identity
+  // fields. This avoids rebuilding the full table state N times per emit.
+  const [baseParticipantId] = participants[0];
+  const baseState = room.table.getClientState(baseParticipantId);
+
+  for (const [participantId, socketId] of participants) {
+    const state =
+      participantId === baseParticipantId
+        ? baseState
+        : {
+            ...baseState,
+            myPlayerId: participantId,
+            myIsSpectator: room.table.isSpectator(participantId),
+          };
+
     io.to(socketId).emit('game_state', state);
   }
 }
