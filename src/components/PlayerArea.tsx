@@ -6,6 +6,7 @@ import { useGameStore, SETTLEMENT_TIMING } from '../hooks/useGameState';
 import { useDealAnimationContext } from '../hooks/useDealAnimation';
 import { evaluateHand, isBlackjack, isSuitedBlackjack } from '../engine/deck';
 import { totalWager } from '../engine/rules';
+import type { PlayerSettlement } from '../shared/protocol';
 
 // Use shared timing constants
 const RESULT_REVEAL_DELAY = SETTLEMENT_TIMING.RESULT_REVEAL_BASE;
@@ -63,6 +64,18 @@ export default function PlayerArea() {
     () => tableState?.players.filter((p) => p.hands.length > 0) ?? [],
     [tableState],
   );
+  const totalHandsOnTable = useMemo(
+    () => activePlayers.reduce((sum, p) => sum + p.hands.length, 0),
+    [activePlayers],
+  );
+  const perfMode = totalHandsOnTable >= 12 || activePlayers.length >= 4;
+  const settlementByPlayer = useMemo(() => {
+    const map = new Map<string, PlayerSettlement>();
+    for (const row of tableState?.settlement ?? []) {
+      map.set(row.playerId, row);
+    }
+    return map;
+  }, [tableState?.settlement]);
 
   // During the deal animation, use the staged cards from context
   // After the deal, use the full server cards
@@ -184,9 +197,7 @@ export default function PlayerArea() {
                   handIdx === tableState.activeHandIndex;
                 const isDone = phase === 'DEALER_TURN' || phase === 'SETTLEMENT';
 
-                const settlement = tableState.settlement?.find(
-                  (s) => s.playerId === player.id,
-                );
+                const settlement = settlementByPlayer.get(player.id);
                 const handResult = settlement?.handResults?.find(
                   (r) => r.handIndex === handIdx,
                 );
@@ -209,7 +220,7 @@ export default function PlayerArea() {
                     : 'blackjack'
                   : 'none';
                 const handOutcomeAnimation =
-                  showResults && handTone
+                  showResults && handTone && !perfMode
                     ? handTone === 'blackjack'
                       ? {
                           scale: [baseScale, baseScale * 1.16, baseScale * 1.05, baseScale],
@@ -235,7 +246,7 @@ export default function PlayerArea() {
                             }
                     : { scale: baseScale, opacity: baseOpacity, x: 0, y: 0, rotate: 0 };
                 const handOutcomeTransition =
-                  showResults && handTone
+                  showResults && handTone && !perfMode
                     ? {
                         duration: handTone === 'loss' ? 0.62 : handTone === 'blackjack' ? 0.92 : 0.76,
                         ease: 'easeOut' as const,
@@ -279,7 +290,7 @@ export default function PlayerArea() {
                       `}
                     >
                       <AnimatePresence>
-                        {showResults && handTone && (
+                        {showResults && handTone && !perfMode && (
                           <>
                             <motion.div
                               key={`hand-glow-soft-${player.id}-${handIdx}`}
@@ -305,7 +316,7 @@ export default function PlayerArea() {
                         isWinner={!!isWinner && showResults}
                         isBust={isBust}
                         showScore={hand.cards.length > 0}
-                        blackjackExplosion={blackjackExplosion}
+                        blackjackExplosion={perfMode ? 'none' : blackjackExplosion}
                         baseDelay={0}
                         hideEmpty={isDealing}
                       />
@@ -317,7 +328,9 @@ export default function PlayerArea() {
                         <motion.div
                           initial={{ opacity: 0, y: -12, scale: 0.74 }}
                           animate={
-                            handTone === 'loss'
+                            perfMode
+                              ? { opacity: 1, y: 0, scale: 1 }
+                              : handTone === 'loss'
                               ? { opacity: 1, y: [0, -2, 0], scale: [0.86, 1.04, 1], x: [0, -3, 3, -2, 0] }
                               : handTone === 'blackjack'
                                 ? { opacity: 1, y: [0, -4, 0], scale: [0.8, 1.18, 1], rotate: [0, -1.6, 1.6, 0] }
@@ -326,7 +339,7 @@ export default function PlayerArea() {
                                   : { opacity: 1, y: [0, -2, 0], scale: [0.86, 1.04, 1] }
                           }
                           transition={{
-                            duration: handTone === 'loss' ? 0.62 : handTone === 'blackjack' ? 0.84 : 0.7,
+                            duration: perfMode ? 0.18 : handTone === 'loss' ? 0.62 : handTone === 'blackjack' ? 0.84 : 0.7,
                             delay: handIdx * 0.08,
                             ease: 'easeOut',
                           }}

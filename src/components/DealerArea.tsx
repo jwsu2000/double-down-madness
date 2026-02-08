@@ -13,10 +13,10 @@ import { DEALER_EMOTE_OPTIONS } from '../shared/protocol';
 
 // ─── Sweat Reveal Timing Constants ──────────────────────────────────────────
 
-const HOLE_FLIP_DELAY = 1000;   // Suspense before flipping the hole card
-const POST_FLIP_PAUSE = 700;    // Pause to let player read the hole card value
-const NEW_CARD_DELAY = 1000;    // Time between each new drawn card
-const FINAL_SETTLE_DELAY = 400; // Grace period before showing results
+const HOLE_FLIP_DELAY = 260;   // Suspense before flipping the hole card
+const POST_FLIP_PAUSE = 180;    // Pause to let player read the hole card value
+const NEW_CARD_DELAY = 260;    // Time between each new drawn card
+const FINAL_SETTLE_DELAY = 120; // Grace period before showing results
 const DEALER_EMOTE_GLYPHS = new Map(
   DEALER_EMOTE_OPTIONS.map((option) => [option.kind, option.glyph]),
 );

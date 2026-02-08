@@ -27,7 +27,8 @@ const socketBaseUrl = normalizeSocketUrl(import.meta.env.VITE_SOCKET_URL);
 
 export const socket: Socket<ServerToClientEvents, ClientToServerEvents> = io(socketBaseUrl, {
   autoConnect: false,
-  transports: ['websocket', 'polling'],
+  // Keep realtime gameplay snappy by skipping long-polling fallback.
+  transports: ['websocket'],
   timeout: 20000,
   reconnection: true,
   reconnectionAttempts: Infinity,

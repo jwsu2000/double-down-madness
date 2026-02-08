@@ -15,9 +15,9 @@ import type { Card } from '../engine/deck';
 
 // ─── Timing ──────────────────────────────────────────────────────────────────
 
-const DEAL_INTERVAL = 350;          // ms between each card being dealt
-const PRE_DEAL_PAUSE = 200;         // brief pause before dealing starts
-const POST_DEAL_SETTLE = 300;       // settle time after last card
+const DEAL_INTERVAL = 150;          // ms between each card being dealt
+const PRE_DEAL_PAUSE = 70;          // brief pause before dealing starts
+const POST_DEAL_SETTLE = 100;       // settle time after last card
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -185,11 +185,6 @@ export function useDealAnimation(): DealAnimationState {
     }
 
     // ─── No animation needed — sync immediately ─────────────────────
-    if (!isDealing) {
-      setDisplayPlayerCards(serverPlayerCards);
-      setDisplayDealerCards(serverDealerCards);
-    }
-
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase, serverPlayerCards, serverDealerCards, roundNumber]);
 
@@ -206,5 +201,10 @@ export function useDealAnimation(): DealAnimationState {
     }
   }, [phase]);
 
-  return { playerCards: displayPlayerCards, dealerCards: displayDealerCards, isDealing, totalDealt };
+  return {
+    playerCards: isDealing ? displayPlayerCards : serverPlayerCards,
+    dealerCards: isDealing ? displayDealerCards : serverDealerCards,
+    isDealing,
+    totalDealt,
+  };
 }

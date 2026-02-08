@@ -1,6 +1,7 @@
 // ─── Row of Cards (Player or Dealer Hand) ─────────────────────────────────────
 
 import Card from './Card';
+import { memo } from 'react';
 import { motion } from 'framer-motion';
 import type { Card as CardType } from '../engine/deck';
 import { evaluateHand } from '../engine/deck';
@@ -16,7 +17,7 @@ interface CardHandProps {
   blackjackExplosion?: 'none' | 'blackjack' | 'suited';
 }
 
-export default function CardHand({
+function CardHand({
   cards,
   isWinner,
   isBust,
@@ -45,7 +46,7 @@ export default function CardHand({
   const flashColor = suitedBoom ? 'rgba(255, 234, 160, 1)' : 'rgba(255, 216, 110, 0.95)';
   const ringColor = suitedBoom ? 'rgba(255, 219, 115, 0.9)' : 'rgba(255, 194, 66, 0.8)';
   const sparkColor = suitedBoom ? 'rgba(255, 248, 205, 1)' : 'rgba(255, 232, 175, 0.98)';
-  const sparkCount = suitedBoom ? 34 : 24;
+  const sparkCount = suitedBoom ? 26 : 18;
   const sparkDistance = suitedBoom ? 190 : 150;
   const explosionKey = `${blackjackExplosion}-${cards.map((c) => `${c.suit}${c.rank}`).join('-')}`;
   const shakeX = suitedBoom ? [0, -7, 7, -6, 6, -4, 4, 0] : [0, -4, 4, -3, 3, -2, 2, 0];
@@ -178,3 +179,32 @@ export default function CardHand({
     </div>
   );
 }
+
+function sameCards(a: CardType[], b: CardType[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (
+      a[i].rank !== b[i].rank ||
+      a[i].suit !== b[i].suit ||
+      a[i].faceUp !== b[i].faceUp
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function areEqual(prev: CardHandProps, next: CardHandProps): boolean {
+  return (
+    prev.isWinner === next.isWinner &&
+    prev.isBust === next.isBust &&
+    prev.showScore === next.showScore &&
+    prev.label === next.label &&
+    prev.baseDelay === next.baseDelay &&
+    prev.hideEmpty === next.hideEmpty &&
+    prev.blackjackExplosion === next.blackjackExplosion &&
+    sameCards(prev.cards, next.cards)
+  );
+}
+
+export default memo(CardHand, areEqual);

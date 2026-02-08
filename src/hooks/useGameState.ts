@@ -757,10 +757,10 @@ export const selectChipDenominations = (s: GameStore) => s._chipDenominations;
 import { useRef, useState, useEffect } from 'react';
 
 export const SETTLEMENT_TIMING = {
-  RESULT_REVEAL_BASE: 600,    // delay before first player result
-  RESULT_STAGGER_PER: 350,    // stagger between each player's results
-  BALANCE_EXTRA: 200,         // extra delay after last player result for balance
-  BANNER_EXTRA: 400,          // extra delay after last player result for banner/chips
+  RESULT_REVEAL_BASE: 180,    // delay before first player result
+  RESULT_STAGGER_PER: 100,    // stagger between each player's results
+  BALANCE_EXTRA: 80,          // extra delay after last player result for balance
+  BANNER_EXTRA: 120,          // extra delay after last player result for banner/chips
 } as const;
 
 const RESULT_REVEAL_BASE = SETTLEMENT_TIMING.RESULT_REVEAL_BASE;

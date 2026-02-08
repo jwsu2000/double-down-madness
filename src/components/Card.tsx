@@ -1,5 +1,6 @@
 // ─── Single Card Component with Flip Animation ───────────────────────────────
 
+import { memo } from 'react';
 import { motion } from 'framer-motion';
 import type { Card as CardType } from '../engine/deck';
 import { suitSymbol, isSuitRed } from '../engine/deck';
@@ -12,7 +13,7 @@ interface CardProps {
   delay?: number;
 }
 
-export default function Card({ card, index, isWinner, isBust, delay = 0 }: CardProps) {
+function Card({ card, index, isWinner, isBust, delay = 0 }: CardProps) {
   const isRed = isSuitRed(card.suit);
   const symbol = suitSymbol(card.suit);
 
@@ -30,8 +31,8 @@ export default function Card({ card, index, isWinner, isBust, delay = 0 }: CardP
       animate={{ x: 0, y: 0, rotate: 0, opacity: 1 }}
       transition={{
         type: 'spring',
-        stiffness: 300,
-        damping: 20,
+        stiffness: 250,
+        damping: 24,
         delay: delay,
       }}
     >
@@ -93,3 +94,17 @@ export default function Card({ card, index, isWinner, isBust, delay = 0 }: CardP
     </motion.div>
   );
 }
+
+function areEqual(prev: CardProps, next: CardProps): boolean {
+  return (
+    prev.index === next.index &&
+    prev.isWinner === next.isWinner &&
+    prev.isBust === next.isBust &&
+    prev.delay === next.delay &&
+    prev.card.rank === next.card.rank &&
+    prev.card.suit === next.card.suit &&
+    prev.card.faceUp === next.card.faceUp
+  );
+}
+
+export default memo(Card, areEqual);

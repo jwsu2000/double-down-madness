@@ -23,7 +23,7 @@ import BasicStrategyDrawer from './components/BasicStrategyDrawer';
 import DiceRollOverlay from './components/DiceRollOverlay';
 
 export default function App() {
-  const tableState = useGameStore((s) => s.tableState);
+  const hasTableState = useGameStore((s) => s.tableState !== null);
   const phase = useGameStore(selectPhase);
   const isMyTurn = useGameStore(selectIsMyTurn);
   const myActions = useGameStore(selectMyActions);
@@ -80,7 +80,7 @@ export default function App() {
   }, [handleKeyDown]);
 
   // Not connected to a room yet — show Lobby
-  if (!tableState) {
+  if (!hasTableState) {
     return <Lobby />;
   }
 
