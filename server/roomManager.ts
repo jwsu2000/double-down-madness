@@ -1,4 +1,5 @@
-﻿import { TableController } from './tableController';
+import { randomBytes } from 'node:crypto';
+import { TableController } from './tableController';
 import type { ClientTableState } from '../src/shared/protocol';
 
 function generateRoomCode(): string {
@@ -11,9 +12,7 @@ function generateRoomCode(): string {
 }
 
 function generatePlayerId(): string {
-  const bytes = new Uint8Array(8);
-  crypto.getRandomValues(bytes);
-  return Array.from(bytes).map((b) => b.toString(16).padStart(2, '0')).join('');
+  return randomBytes(8).toString('hex');
 }
 
 export interface Room {
