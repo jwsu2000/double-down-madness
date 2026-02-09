@@ -85,7 +85,7 @@ export default function App() {
   }
 
   // In the room lobby — show player list + start button
-  if (tableState.phase === 'LOBBY') {
+  if (phase === 'LOBBY') {
     return (
       <div className="app-shell min-h-dvh bg-navy">
         <RoomLobby />
